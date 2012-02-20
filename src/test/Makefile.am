@@ -1,0 +1,5 @@
+AM_CPPFLAGS = $(WARNING_CXXFLAGS) $(COMPILANCE_CXXFLAGS) $(BOOST_CPPFLAGS) -I$(top_srcdir)/src/include
+AM_LDFLAGS = -lfst $(BOOST_LDFLAGS) $(BOOST_UNIT_TEST_FRAMEWORK_LIB)
+
+bin_PROGRAMS = test-query
+test_query_SOURCES = test-query.cpp
