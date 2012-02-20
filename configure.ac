@@ -108,6 +108,7 @@ AC_SUBST([OPTIMIZATION_CXXFLAGS])
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([src/Makefile])
 AC_CONFIG_FILES([src/bin/Makefile])
+AC_CONFIG_FILES([src/lib/Makefile])
 AC_CONFIG_FILES([src/test/Makefile])
 
 
