@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 AC_INIT(openlat, 0.1, valabau@gmail.com)
-AC_CONFIG_SRCDIR([src/lat-compile.cpp])
+AC_CONFIG_SRCDIR([src/include/openlat/compat.h])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADER([src/include/openlat/config.h])
 AC_CONFIG_MACRO_DIR([m4])
