@@ -44,9 +44,11 @@
 
 %{
 	#include <iostream>
-	#include <openlat/htk-compiler.h>
+	#include "htk.h"
+	#include <openlat/utils.h>
 
 	using namespace std;
+	using namespace openlat;
 
 	int htk_lex(YYSTYPE* lvalp, YYLTYPE* llocp, void* scanner);		
 
@@ -56,6 +58,7 @@
 	}
 
 	#define scanner context->scanner
+	
 %}
 
 %%
@@ -81,69 +84,43 @@ link_def     = J ( S E { W v d a n l} ) \n
 %start lattice_file;
 
 /* File structure */
-lattice_file: { /* Init variables */
-                node_ptr = NULL;
-                link_ptr = NULL;
-                if (logbase != FLOAT_NONE) driver.slf.base = logbase;
-                if (driver.slf.features.empty()) load_features = true;
-              }
+lattice_file: { /* Init variables */ }
               header
               { /* Check compulsory paramenters */
-                /* Fix feature mismatches*/
-                if (driver.slf.scorer.feature_scales.size() > 0) {
-                  if (driver.slf.features.empty()) {
-                    size_t f = 0;
-                    stringstream ss;
-                    ss << "f" << f;
-                    for (f = 1; f < driver.slf.scorer.feature_scales.size(); f++) {
-                      ss << ",f" << f;
-                    }
-                    driver.slf.setFeatures(ss.str());
-                  }
-                  else if (driver.slf.scorer.feature_scales.size() < driver.slf.features.size()) {
-                    driver.slf.scorer.feature_scales.resize(driver.slf.features.size(), 1.0);
-                  }
-                }
-                assert_bt(driver.slf.features.size() == driver.slf.scorer.feature_scales.size(), "Mismatch in the number of features and feature scores");
+              
+                // Make this first to ensure that the initial state is state 0
+              	if (not context->htk.start_name.empty()) {
+              	  context->htk.getStateId(context->htk.start_name);
+              	} 
               }
               size_def
-              { /* Check valid lattice size */}
+              { /* Check valid lattice size */ }
               terms
-              {
-                if (driver.slf.initial != UNK_NODE) {
-                  driver.slf.initial = driver.slf.getInternalNodeId(driver.slf.initial);
-                }
-                if (driver.slf.final != UNK_NODE) {
-                  driver.slf.final = driver.slf.getInternalNodeId(driver.slf.final);
-                }
-              }
+              { }
 
 /* header options */
 header: /* empty */
   | header option
 
-option: SLF_VERSION STRING { driver.slf.version = string($2); delete[] $2; }   ENDL
-      | UTTERANCE   STRING { driver.slf.utterance = string($2); delete[] $2; } ENDL
-      | SUBLAT      STRING { driver.slf.sublat = string($2); delete[] $2; }    ENDL
-      | BASE        number { if (logbase == FLOAT_NONE) driver.slf.base = $2; }
-      | LMNAME      STRING { driver.slf.scorer.lmname = string($2); delete[] $2; }    ENDL
-      | LMSCALE     number { driver.slf.scorer.lmscale = $2; }
-      | LMINSCALE   number { driver.slf.scorer.lminscale = $2; }
-      | LMOUTSCALE  number { driver.slf.scorer.lmoutscale = $2; }
+option: SLF_VERSION STRING { context->htk.version = string($2); delete[] $2; }   ENDL
+      | UTTERANCE   STRING { context->htk.utterance = string($2); delete[] $2; } ENDL
+      | SUBLAT      STRING { context->htk.sublat = string($2); delete[] $2; }    ENDL
+      | BASE        number { context->htk.base = $2; }
+      | LMNAME      STRING { context->htk.lmname = string($2); delete[] $2; }    ENDL
+      | LMSCALE     number { context->htk.assignWeight(HtkLattice::LANGUAGE, $2); }
+      | LMINSCALE   number { context->htk.assignWeight(HtkLattice::LMIN, $2); }
+      | LMOUTSCALE  number { context->htk.assignWeight(HtkLattice::LMOUT, $2); }
       /* Word Penalty in log, as SRILM does */
-      //| WDPENALTY   number { driver.slf.scorer.wdpenalty = driver.slf.changeBase($2); }
-      | WDPENALTY   number { driver.slf.scorer.wdpenalty = $2; }
-      | NDPENALTY   number { driver.slf.scorer.ndpenalty = $2; }
-      //| WDPENALTY_OUTPUT number { driver.slf.scorer.wdpenalty_output = driver.slf.changeBase($2); }
-      | WDPENALTY_OUTPUT number { driver.slf.scorer.wdpenalty_output = $2; }
-      | ACSCALE     number { driver.slf.scorer.acscale = $2; }
-      | AMSCALE     number { driver.slf.scorer.amscale = $2; }
-      | ECSCALE     number { driver.slf.scorer.ecscale = $2; }
-      | VOCAB       STRING { driver.slf.vocab = $2; delete[] $2; }   ENDL
-      | FEATURES    STRING { if (load_features) driver.slf.setFeatures($2); delete[] $2; }   ENDL
-      | XSCALE      number { if (load_features) driver.slf.setFeatureScale($1-1, $2); }
-      | INITIAL_NODE  INT  { driver.slf.initial = static_cast<node_id_t>($2); }
-      | FINAL_NODE    INT  { driver.slf.final = static_cast<node_id_t>($2); }
+      //| WDPENALTY   number { context->htk.weights.wdpenalty = context->htk.changeBase($2); }
+      | WDPENALTY   number { context->htk.assignWeight(HtkLattice::WDPENALTY, $2); }
+      | NDPENALTY   number { context->htk.assignWeight(HtkLattice::NOISE_PENALTY, $2); }
+      | WDPENALTY_OUTPUT number { context->htk.assignWeight(HtkLattice::OUTPUT_WDPENALTY, $2); }
+      | ACSCALE     number { context->htk.assignWeight(HtkLattice::ACOUSTIC, $2); }
+      | AMSCALE     number { context->htk.weights.amscale = $2; }
+      | VOCAB       STRING { context->htk.vocab = string($2); delete[] $2; }   ENDL
+      | XSCALE      number { context->htk.assignWeight(HtkLattice::feature_t(HtkLattice::XSCORE + $1-1), $2); }
+      | INITIAL_NODE  INT  { context->htk.start_name = to_string($2); }
+      | FINAL_NODE    INT  { context->htk.end_name   = to_string($2); }
       | UNK_OPTION  STRING ENDL { delete[] $1; delete[] $2; }
       | ENDL
 
@@ -151,8 +128,8 @@ option: SLF_VERSION STRING { driver.slf.version = string($2); delete[] $2; }   E
 size_def: /* empty */
         | size_def def
 
-def: NODES INT { num_nodes = $2; }
-   | LINKS INT { num_links = $2; }
+def: NODES INT { context->num_nodes = $2; }
+   | LINKS INT { context->num_links = $2; }
    | ENDL
 
 
@@ -166,128 +143,57 @@ term: node
 
 /* Node */
 node: NODE INT
-      {
-        node_ptr = new Node();
-        node_ptr->id = static_cast<node_id_t>($2);
-        node_ptr->original_id = static_cast<node_id_t>($2);
+      { 
+        context->node_ptr = context->htk.getState(to_string($2));
+        context->link_ptr = &context->node_ptr->link; 
       }
       node_options
-      {
-        driver.slf.addNode(node_ptr);
-        node_ptr = NULL;
+      { /* Post-process node */
+        context->node_ptr = 0;
+        context->link_ptr = 0;     
       }
       ENDL
 node_options: /* empty */
             | node_options node_option
-node_option: TIME number { node_ptr->time = $2; }
-           | SUBS STRING { node_ptr->sublat = string($2); delete[] $2; }
-           | VAR  INT    { node_ptr->var = $2; }
-           | COVERAGE  STRING { delete[] $2; }   
-           | ACOUSTIC   number { node_ptr->acoustic = driver.slf.changeBase($2); }
-           | DIV        STRING { node_ptr->div = string($2); delete[] $2; }
-           | WORD       STRING { 
-                                 vector<string> inwords;
-                                 tokenize($2, inwords, "_");
-                                 for (size_t w = 0; w < inwords.size(); w++) {
-                                   node_ptr->input.push_back(Word(inwords[w]));
-                                 }
-                                 delete[] $2;
-                               }
-           | OUTPUT     STRING {
-                                 vector<string> outwords;
-                                 tokenize($2, outwords, "_");
-                                 for (size_t w = 0; w < outwords.size(); w++) {
-                                   node_ptr->output.push_back(Word(outwords[w]));
-                                 }
-                                 delete[] $2;
-                               }
+node_option: TIME number { context->node_ptr->time = $2; }
+           | SUBS STRING { context->node_ptr->sublat = string($2); delete[] $2; }
+           | COVERAGE  STRING { delete[] $2; }
+           | link_option
+
+           /* Link info in node   
+           | VAR  INT    { context->link_ptr->var = $2; }
+           | ACOUSTIC   number { context->htk.assign(context->link_ptr, HtkLattice::ACOUSTIC, $2); }
+           | DIV        STRING { context->link_ptr->div = string($2); delete[] $2; }
+           | WORD       STRING { context->htk.assignInput(context->link_ptr, string($2)); delete[] $2; }
+           | OUTPUT     STRING { context->htk.assignOutput(context->link_ptr, string($2)); delete[] $2; }
            | UNK_OPTION  STRING { delete[] $1; delete[] $2; }
+           */
 
 /* Links */
 link: LINK INT
       {
-        link_ptr = new Link(driver.slf.features.size());
-        fill(link_ptr->features, link_ptr->features + driver.slf.features.size(), .0);
-        link_ptr->original_id = static_cast<link_id_t>($2);
-        has_word = false;
-        has_ac = false;
+        context->link_ptr = context->htk.getArc(to_string($2));
       }
       link_options
       {
-        if (link_ptr->start != UNK_NODE and link_ptr->end != UNK_NODE) {
-          std::ostringstream ss;
-          if (not has_word) {
-            link_ptr->input = driver.slf.nodes[link_ptr->end]->input;
-            link_ptr->output = driver.slf.nodes[link_ptr->end]->output;
-          }
-          if (not has_ac) link_ptr->acoustic = driver.slf.nodes[link_ptr->end]->acoustic; 
-          
-          if (link_ptr->input.empty()) {
-            ss << WordFactory::null;
-          }
-          else {
-            ss << link_ptr->input[0];
-            for (size_t i = 1; i < link_ptr->input.size(); i++) {
-              ss << "_" << link_ptr->input[i];
-            }
-          }
-          if (driver.slf.has_joint_phrases and not link_ptr->output.empty()) {
-            ss << "|||" << link_ptr->output[0];
-            for (size_t o = 1; o < link_ptr->output.size(); o++) {
-              ss << "_" << link_ptr->output[o];
-            }
-          }
-          link_ptr->word_id = driver.slf.wordmap.getWordId(Word(ss.str()));
-
-          driver.slf.addLink(link_ptr);
-        }
-        else {
-          cerr << "Warning: Discarding link with non-existing start or end nodes\n";
-          delete link_ptr;
-        }
-        link_ptr = NULL;
+        context->link_ptr = NULL;
       }
       ENDL
 link_options: /* empty */
             | link_options link_option
-link_option: START_NODE INT    { link_ptr->start = driver.slf.getInternalNodeId($2); }
-           | END_NODE   INT    { link_ptr->end = driver.slf.getInternalNodeId($2); }
-           | WORD       STRING {
-                                 has_word = true;
-                                 vector<string> inwords;
-                                 tokenize($2, inwords, "_");
-                                 for (size_t w = 0; w < inwords.size(); w++) {
-                                   link_ptr->input.push_back(Word(inwords[w]));
-                                 }
-                                 delete[] $2;
-                               }
-           | VAR        INT    { link_ptr->var = $2; }
-           | DIV        STRING { link_ptr->div = string($2); delete[] $2; }
-           | ACOUSTIC   number { link_ptr->acoustic = driver.slf.changeBase($2); has_ac = true; }
-           | NGRAM      number { link_ptr->ngram = driver.slf.changeBase($2); }
-           | LANGUAGE   number { link_ptr->language = driver.slf.changeBase($2); }
-           | LMIN       number { link_ptr->language_in = driver.slf.changeBase($2); }
-           | LMOUT      number { link_ptr->language_out = driver.slf.changeBase($2); }
-           | POSTERIOR  number { link_ptr->posterior = driver.slf.changeBase($2); }
-           | EXPECTED_ERROR number { link_ptr->error = driver.slf.changeBase($2); }
-           | CORRECT    number { link_ptr->correct = bool($2); driver.slf.tagged = true; }
-           | ESTIMATED_CORRECT    number { link_ptr->estimated_correct = bool($2); }
-           | FEATURES   STRING { if (load_features) link_ptr->setFeatures($2); delete[] $2; }
-           | XSCORE     number { if (load_features) {
-                                   assert_bt($1-1 < static_cast<int>(driver.slf.features.size()), 
-                                     "Invalid feature index "<<($1-1)<<" of "<<driver.slf.features.size()<<" features");
-                                   link_ptr->features[$1-1] = $2; 
-                                 }
-                               }
-           | OUTPUT     STRING {
-                                 has_word = true;
-                                 vector<string> outwords;
-                                 tokenize($2, outwords, "_");
-                                 for (size_t w = 0; w < outwords.size(); w++) {
-                                   link_ptr->output.push_back(Word(outwords[w]));
-                                 }
-                                 delete[] $2;
-                               }
+link_option: START_NODE INT    { context->link_ptr->start = context->htk.getStateId(to_string($2)); }
+           | END_NODE   INT    { context->link_ptr->end   = context->htk.getStateId(to_string($2)); }
+           | WORD       STRING { context->htk.assignInput(context->link_ptr, string($2)); delete[] $2; }
+           | OUTPUT     STRING { context->htk.assignOutput(context->link_ptr, string($2)); delete[] $2; }
+           | VAR        INT    { context->link_ptr->var = $2; }
+           | DIV        STRING { context->link_ptr->div = string($2); delete[] $2; }
+           | ACOUSTIC   number { context->htk.assign(context->link_ptr, HtkLattice::ACOUSTIC, $2); }
+           | LANGUAGE   number { context->htk.assign(context->link_ptr, HtkLattice::LANGUAGE, $2); }
+           | NGRAM      number { context->htk.assign(context->link_ptr, HtkLattice::NGRAM, $2); }
+           | LMIN       number { context->htk.assign(context->link_ptr, HtkLattice::LMIN, $2); }
+           | LMOUT      number { context->htk.assign(context->link_ptr, HtkLattice::LMOUT, $2); }
+           | POSTERIOR  number { context->htk.assign(context->link_ptr, HtkLattice::POSTERIOR, $2); }
+           | XSCORE     number { context->htk.assign(context->link_ptr, HtkLattice::feature_t(HtkLattice::XSCORE + $1-1), $2); }
            | UNK_OPTION STRING { delete[] $1; delete[] $2; }
 
 /* Helper rules */

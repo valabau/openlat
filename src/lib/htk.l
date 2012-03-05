@@ -9,7 +9,7 @@
 %option case-insensitive
 
 %{
-	#include <openlat/htk-compiler.h>
+	#include "htk.h"
 	#include "yacc.htk.hpp"
 
   using namespace openlat;
@@ -40,8 +40,8 @@
 	#define YY_INPUT(buf,result,max_size) \
 	{ \
 		char c; \
-		(*yyextra->is) >> c; \
-		if(yyextra->is->eof()) \
+		yyextra->is >> c; \
+		if (yyextra->is.eof()) \
 			result = YY_NULL; \
 		else { \
 			buf[0] = c; \

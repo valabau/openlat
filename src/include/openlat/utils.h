@@ -23,12 +23,12 @@
 #ifndef openlat_UTILS_H_
 #define openlat_UTILS_H_
 
-namespace openlat {
-
 #include <numeric>
 #include <sstream>
 #include <string>
 #include <vector>
+
+namespace openlat {
 
 #define _WRITE(msg) std::cerr << msg
 
@@ -93,6 +93,11 @@ inline T sub_log(T a, T b) {
   return a + log(1.0 - exp(b-a));
 }
 
+template<typename T>
+T change_base(T value, T base) {
+  return value * log(base);
+}
+
 template<class T> unsigned int edit_distance(const T& s1, const T& s2) {
   const size_t len1 = s1.size(), len2 = s2.size();
   std::vector<vector<unsigned int> > d(len1 + 1, std::vector<unsigned int> (len2 + 1));
@@ -120,6 +125,11 @@ T convert_string(const string& text) {
   return ret;
 }
 
+template <typename T>
+string to_string(const T& value) {
+  std::ostringstream ss(std::ostringstream::out);
+  ss << value;
+  return ss.str();
 }
 
 template <typename T>
@@ -142,5 +152,7 @@ void tokenize(const T& str,
     }
 }
 
+
+}
 
 #endif /* openlat_UTILS_H_ */
