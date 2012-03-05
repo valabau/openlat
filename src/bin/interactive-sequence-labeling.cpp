@@ -255,37 +255,46 @@ public:
     }
   }
 
+  /** Ask next label */
   virtual Query askLabel() {
     Query query;
+
+    // process next sample in the queue
     query.label.sample = next_sample;
     next_sample = (next_sample + 1) % Base::fsts.size();
+
     // pop min element from pool[query.sample]
     pop_heap(pool[query.label.sample].begin(), pool[query.label.sample].end(), less<Pool::iterator>());
-    // return query
+
+    // return query and remove it from the queue
     query.label.label = pool[query.label.sample].back()->first.label;
     query.hyp         = pool[query.label.sample].back()->second.hyp;
     pool[query.label.sample].pop_back();
     return query;
   }
 
+  /** Assign query and update re-sort the queue jut for the current sample */
   virtual void fixLabel(const Query &query, vector<VLabel> &hyp) {
     Base::update(query, hyp);
     make_heap(pool[query.label.sample].begin(), pool[query.label.sample].end(), less<Pool::iterator>());
   }
 
+  /** Recompute scores using the Recompute template argument */
   virtual void recomputeScores(const Query &query, vector<VLabel> &hyp, vector<float> &scores) {
     VectorFst<Arc> *fst = Base::fsts[query.label.sample];
+    // create a dummy dead state for the mappers to disable an arc
     typename VectorFst<Arc>::StateId dead_state = fst->AddState();
     Recompute()(*fst, dead_state,
         Base::assigned_labels[query.label.sample], hyp, scores);
+    // delete the dummy state
     fst->DeleteStates(vector<typename VectorFst<Arc>::StateId>(1, dead_state));
   }
 
   virtual ~LocalSystem() {};
 
 protected:
-  size_t next_sample;
-  vector< vector<Pool::iterator>  > pool;
+  size_t next_sample; //< which is the next sample to process
+  vector< vector<Pool::iterator>  > pool; //< a pool of queries for each sample
 };
 
 /** @class LocalSystem
@@ -302,9 +311,10 @@ public:
     }
   }
 
+  /** Ask next label */
   virtual Query askLabel() {
     Query query;
-    // pop min element from pool
+    // pop min element from the global pool
     pop_heap(pool.begin(), pool.end(), less<Pool::iterator>());
     // return query
     query.label.sample = pool.back()->first.sample;
@@ -313,21 +323,28 @@ public:
     pool.pop_back();
     return query;
   }
+
+
+  /** Assign query and update re-sort the queue jut for the current sample */
   virtual void fixLabel(const Query &query, vector<VLabel> &hyp) {
     Base::update(query, hyp);
     make_heap(pool.begin(), pool.end(), less<Pool::iterator>());
   }
+
+  /** Recompute scores using the Recompute template argument */
   virtual void recomputeScores(const Query &query, vector<VLabel> &hyp, vector<float> &scores) {
     VectorFst<Arc> *fst = Base::fsts[query.label.sample];
+    // create a dummy dead state for the mappers to disable an arc
     typename VectorFst<Arc>::StateId dead_state = fst->AddState();
     Recompute()(*fst, dead_state,
         Base::assigned_labels[query.label.sample], hyp, scores);
+    // delete the dummy state
     fst->DeleteStates(vector<typename VectorFst<Arc>::StateId>(1, dead_state));
   }
   virtual ~GlobalSystem() {};
 
 protected:
-  vector<Pool::iterator> pool;
+  vector<Pool::iterator> pool; //< a global pool of queries
 };
 
 template <class Arc, class Filter>
@@ -339,7 +356,6 @@ struct RecomputeRandom {
     }
   }
 };
-
 
 template <class Arc, class Filter>
 struct RecomputeGreedy {
