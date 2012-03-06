@@ -27,9 +27,12 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <cerrno>
 
 namespace openlat {
 
+
+#define print_stack_trace
 #define _WRITE(msg) std::cerr << msg
 
 #define _WRITE_MSG(file, line, func_name, expstr, msg) \

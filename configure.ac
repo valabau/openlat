@@ -47,12 +47,13 @@ DX_INIT_DOXYGEN(foobar, doxygen.cfg, doc)
 # optional configure options
 AC_ARG_WITH(debug, AC_HELP_STRING(--with-debug, \
 [enable debug]), \
-[CPPFLAGS="-DDEBUG=1" \
-CXXFLAGS="-g -O0"])
+[ DEBUG=true \
+CXXFLAGS="-g3 -O0"])
 
 AC_ARG_WITH(gprof, AC_HELP_STRING(--with-gprof, \
 [enable profiler]), \
-[CPPFLAGS="-DDEBUG=1" \
+[ PROFILE=true \
+CPPFLAGS="-DDEBUG=1" \
 CXXFLAGS+=" -pg"])
 
 
@@ -77,8 +78,8 @@ AC_TYPE_SIZE_T
 # Check for compilation options
 # if error on this function then AX_CHECK_COMPILE_FLAG is not defined.
 # please, install autoconf-archive (sudo apt-get install autoconf-archive) 
- AX_CHECK_COMPILER_FLAGS([-std=c++11], [COMPILANCE_CXXFLAGS="${COMPILANCE_CXXFLAGS} -std=c++11"], 
-    [AX_CHECK_COMPILER_FLAGS([-std=c++0x], [COMPILANCE_CXXFLAGS="${COMPILANCE_CXXFLAGS} -std=c++0x"])])
+# AX_CHECK_COMPILER_FLAGS([-std=c++11], [COMPILANCE_CXXFLAGS="${COMPILANCE_CXXFLAGS} -std=c++11"], 
+#    [AX_CHECK_COMPILER_FLAGS([-std=c++0x], [COMPILANCE_CXXFLAGS="${COMPILANCE_CXXFLAGS} -std=c++0x"])])
 #AX_CHECK_COMPILER_FLAGS([-std=c++98], [COMPILANCE_CXXFLAGS="${COMPILANCE_CXXFLAGS} -std=c++98"],)
 
 
@@ -95,9 +96,8 @@ AX_CHECK_COMPILER_FLAGS([-Wunused-variable], [WARNING_CXXFLAGS="${WARNING_CXXFLA
 AX_CHECK_COMPILER_FLAGS([-Wunused-parameter], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wunused-parameter"])
 AX_CHECK_COMPILER_FLAGS([-Wunused-function], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wunused-function"])
 
-AM_CONDITIONAL(DEBUG, [test x"$debug" = x"true"])
-AS_IF(test x"$DEBUG" = x"true", WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -DDEBUG -DLT_DEBUG_LOADERS"], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -DNDEBUG"])
-#AS_IF(test x"$DEBUG" = x"true", OPTIMIZATION_CXXFLAGS="${OPTIMIZATION_CXXFLAGS} -DDEBUG -g3 -O0"], [OPTIMIZATION_CXXFLAGS="${OPTIMIZATION_CXXFLAGS} -O2 -ffast-math"])
+AS_IF(test x"$DEBUG" = x"true" -o "$PROFILE" = x"true" , [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -DDEBUG -DLT_DEBUG_LOADERS"], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -DNDEBUG"])
+#AS_IF(test x"$DEBUG" = x"true", [OPTIMIZATION_CXXFLAGS="${OPTIMIZATION_CXXFLAGS} -DDEBUG -g3 -O0"], [OPTIMIZATION_CXXFLAGS="${OPTIMIZATION_CXXFLAGS} -O2 -ffast-math"])
 
 
 

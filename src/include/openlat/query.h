@@ -25,7 +25,7 @@
 
 namespace openlat {
 
-typedef VectorFst<LogArc> LogVectorFst;
+typedef fst::VectorFst<fst::LogArc> LogVectorFst;
 typedef LogVectorFst::Arc::Label VLabel;
 
 typedef struct _sSampleLabel{
@@ -41,7 +41,7 @@ typedef struct _sSampleLabel{
 typedef struct _sQuery {
   SampleLabel label;
   VLabel hyp;
-  _sQuery(size_t _sample = 0, VLabel _label = 0, VLabel _hyp = SymbolTable::kNoSymbol): label(_sample, _label), hyp(_hyp) {}
+  _sQuery(size_t _sample = 0, VLabel _label = 0, VLabel _hyp = fst::SymbolTable::kNoSymbol): label(_sample, _label), hyp(_hyp) {}
 } Query;
 
 // True if specified labels match (don't match) when M is
@@ -62,12 +62,12 @@ private:
   Label label_, member_;
 };
 
-typedef QueryFilter<LogArc> LogQueryFilter;
+typedef QueryFilter<fst::LogArc> LogQueryFilter;
 
 
 template<class Arc>
-float ShortestPath(const Fst<Arc> &fst, vector<VLabel> &hyp, vector<float> &scores) {
-  typedef VectorFst<Arc> Fst;
+float ShortestPath(const fst::Fst<Arc> &fst, vector<VLabel> &hyp, vector<float> &scores) {
+  typedef fst::VectorFst<Arc> Fst;
   Fst *best = new Fst();
 
   ShortestPath(fst, best);
@@ -76,11 +76,11 @@ float ShortestPath(const Fst<Arc> &fst, vector<VLabel> &hyp, vector<float> &scor
   hyp.clear();
   scores.clear();
 
-  for (StateIterator<Fst> siter(*best); !siter.Done(); siter.Next()) {
+  for (fst::StateIterator<Fst> siter(*best); !siter.Done(); siter.Next()) {
     typename Fst::StateId s = siter.Value();
 
     assert_bt(best->NumArcs(s) == 0, "Unexpected number of arcs in 1-best fst\n");
-    for (ArcIterator<Fst> aiter(*best, s); !aiter.Done(); aiter.Next()) {
+    for (fst::ArcIterator<Fst> aiter(*best, s); !aiter.Done(); aiter.Next()) {
       typename Fst::Arc arc = aiter.Value();
       hyp.push_back(arc.olabel);
       scores.push_back(arc.weight.Value());
@@ -94,9 +94,9 @@ float ShortestPath(const Fst<Arc> &fst, vector<VLabel> &hyp, vector<float> &scor
 }
 
 template<>
-float ShortestPath<LogArc>(const Fst<LogArc> &fst, vector<VLabel> &hyp, vector<float> &scores) {
-  MapFst<LogArc, StdArc, LogToStdMapper> _fst(fst, LogToStdMapper());
-  return ShortestPath<StdArc>(_fst, hyp, scores);
+float ShortestPath<fst::LogArc>(const fst::Fst<fst::LogArc> &fst, vector<VLabel> &hyp, vector<float> &scores) {
+  fst::MapFst<fst::LogArc, fst::StdArc, fst::LogToStdMapper> _fst(fst, fst::LogToStdMapper());
+  return ShortestPath<fst::StdArc>(_fst, hyp, scores);
 }
 
 
@@ -119,11 +119,11 @@ class FilterMapper {
                  arc.weight, (filter_(arc))?arc.nextstate:dead_state_);
   }
 
-  MapFinalAction FinalAction() const { return MAP_NO_SUPERFINAL; }
+  fst::MapFinalAction FinalAction() const { return fst::MAP_NO_SUPERFINAL; }
 
-  MapSymbolsAction InputSymbolsAction() const { return MAP_COPY_SYMBOLS; }
+  fst::MapSymbolsAction InputSymbolsAction() const { return fst::MAP_COPY_SYMBOLS; }
 
-  MapSymbolsAction OutputSymbolsAction() const { return MAP_COPY_SYMBOLS;}
+  fst::MapSymbolsAction OutputSymbolsAction() const { return fst::MAP_COPY_SYMBOLS;}
 
   uint64 Properties(uint64 props) const { return props; }
 
@@ -134,7 +134,7 @@ class FilterMapper {
   typename A::StateId dead_state_;
 };
 
-typedef FilterMapper<LogArc, LogQueryFilter> QueryMapper;
+typedef FilterMapper<fst::LogArc, LogQueryFilter> QueryMapper;
 
 }
 

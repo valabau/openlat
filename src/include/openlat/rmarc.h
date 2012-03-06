@@ -23,11 +23,9 @@
 #ifndef openlat_RMARC_H_
 #define openlat_RMARC_H_
 
-namespace openlat {
-
 #include <fst/mutable-fst.h>
-using namespace fst;
 
+namespace openlat {
 
 template <class Arc, class ArcFilter>
 struct RmArcOptions {
@@ -37,14 +35,14 @@ struct RmArcOptions {
 
 
 template<class Arc, class ArcFilter>
-void RmArc(MutableFst<Arc> *fst, const RmArcOptions<Arc, ArcFilter> &opts) {
+void RmArc(fst::MutableFst<Arc> *fst, const RmArcOptions<Arc, ArcFilter> &opts) {
   typedef typename Arc::StateId StateId;
 
   StateId dead = fst->AddState();
-  for (StateIterator<MutableFst<Arc> > siter(*fst); !siter.Done(); siter.Next()) {
+  for (fst::StateIterator<fst::MutableFst<Arc> > siter(*fst); !siter.Done(); siter.Next()) {
     StateId s = siter.Value();
 
-    for (MutableArcIterator < MutableFst<Arc> > aiter(fst, s); !aiter.Done(); aiter.Next()) {
+    for (fst::MutableArcIterator < fst::MutableFst<Arc> > aiter(fst, s); !aiter.Done(); aiter.Next()) {
       Arc arc = aiter.Value();
       if (not opts.arc_filter(arc)) {
         arc.nextstate = dead;

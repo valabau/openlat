@@ -33,32 +33,32 @@ namespace openlat {
 
 template<class FromArc, class ToArc, class Queue, class ArcFilter>
 void ApproxShortestDistance(
-    const Fst<FromArc> &fst,
-    vector<typename ToArc::Weight> *distance,
-    const ShortestDistanceOptions<FromArc, Queue, ArcFilter> &opts) {
-  typedef WeightConvertMapper<FromArc, ToArc> WeightMapper;
-  typedef MapFst<FromArc, ToArc, WeightMapper> ApproxFst;
-  ShortestDistance<ToArc, Queue, ArcFilter>(ApproxFst(fst, WeightMapper()), distance, opts);
+    const fst::Fst<FromArc> &fst,
+    std::vector<typename ToArc::Weight> *distance,
+    const fst::ShortestDistanceOptions<FromArc, Queue, ArcFilter> &opts) {
+  typedef fst::WeightConvertMapper<FromArc, ToArc> WeightMapper;
+  typedef fst::MapFst<FromArc, ToArc, WeightMapper> ApproxFst;
+  fst::ShortestDistance<ToArc, Queue, ArcFilter>(ApproxFst(fst, WeightMapper()), distance, opts);
 }
 
 template <class FromArc, class ToArc>
-void ApproxShortestDistance(const Fst<FromArc> &fst,
-                      vector<typename ToArc::Weight> *distance,
+void ApproxShortestDistance(const fst::Fst<FromArc> &fst,
+                      std::vector<typename ToArc::Weight> *distance,
                       bool reverse = false,
-                      float delta = kDelta) {
-  typedef WeightConvertMapper<FromArc, ToArc> WeightMapper;
-  typedef MapFst<FromArc, ToArc, WeightMapper> ApproxFst;
-  ShortestDistance<ToArc>(ApproxFst(fst, WeightMapper()), distance, reverse, delta);
+                      float delta = fst::kDelta) {
+  typedef fst::WeightConvertMapper<FromArc, ToArc> WeightMapper;
+  typedef fst::MapFst<FromArc, ToArc, WeightMapper> ApproxFst;
+  fst::ShortestDistance<ToArc>(ApproxFst(fst, WeightMapper()), distance, reverse, delta);
 }
 
 
 // Return the sum of the weight of all successful paths in an FST, i.e.,
 // the shortest-distance from the initial state to the final states.
 template <class FromArc, class ToArc>
-typename ToArc::Weight ApproxShortestDistance(const Fst<FromArc> &fst, float delta = kDelta) {
-  typedef WeightConvertMapper<FromArc, ToArc> WeightMapper;
-  typedef MapFst<FromArc, ToArc, WeightMapper> ApproxFst;
-  return ShortestDistance<ToArc>(ApproxFst(fst, WeightMapper()), delta);
+typename ToArc::Weight ApproxShortestDistance(const fst::Fst<FromArc> &fst, float delta = fst::kDelta) {
+  typedef fst::WeightConvertMapper<FromArc, ToArc> WeightMapper;
+  typedef fst::MapFst<FromArc, ToArc, WeightMapper> ApproxFst;
+  return fst::ShortestDistance<ToArc>(ApproxFst(fst, WeightMapper()), delta);
 }
 
 

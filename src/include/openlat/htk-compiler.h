@@ -30,7 +30,7 @@
 
 namespace openlat {
 
-  LogLinearFst*  ReadHtk(istream &istrm, const string &source);
+  LogLinearFst*  ReadHtk(std::istream &istrm, const std::string &source);
 
 }  // namespace fst
 
