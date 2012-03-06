@@ -32,7 +32,7 @@
 #include <openlat/utils.h>
 #include <openlat/query.h>
 #include <openlat/verify.h>
-#include <openlat/approx-shortest-distance.h>
+#include <openlat/interactive-sequence-labeling.h>
 
 
 
@@ -47,10 +47,12 @@ using namespace openlat;
 
 struct Lattice {
   LogVectorFst fst;
+  vector<VLabel> ref;
 
 
   Lattice() {
     BOOST_TEST_MESSAGE("initializing fst");
+    srand(time(NULL));
 
     fst.SetStart(fst.AddState());
 
@@ -66,6 +68,9 @@ struct Lattice {
     fst.AddState();
     fst.SetFinal(2, -log(1.0));  // 1st arg is state ID, 2nd arg weigh
 
+    ref.push_back(0);
+    ref.push_back(2);
+
     Connect(&fst);
   }
 
@@ -76,7 +81,7 @@ struct Lattice {
 
 BOOST_FIXTURE_TEST_SUITE(SequenceLabeling, Lattice)
 
-BOOST_AUTO_TEST_CASE(verifySequenceLabeling)
+BOOST_AUTO_TEST_CASE(verifyFsts)
 {
   BOOST_CHECK(Verify(fst));
 
@@ -100,6 +105,20 @@ BOOST_AUTO_TEST_CASE(verifySequenceLabeling)
     BOOST_CHECK(len == static_cast<size_t>(-1));
     delete bad_fst;
   }
+}
+
+BOOST_AUTO_TEST_CASE(verifySequenceLabeling)
+{
+  BOOST_CHECK(Verify(fst));
+
+  vector<VectorFst<LogArc> *> fsts(1, &fst);
+  vector<vector<VLabel> > refs(1, ref);
+
+  LocalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter> > system(fsts);
+  Oracle oracle(refs);
+
+  oracle.evaluate(&system);
+
 }
 
 BOOST_AUTO_TEST_SUITE_END()

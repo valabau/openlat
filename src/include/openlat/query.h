@@ -76,17 +76,23 @@ float ShortestPath(const fst::Fst<Arc> &fst, vector<VLabel> &hyp, vector<float> 
   hyp.clear();
   scores.clear();
 
-  for (fst::StateIterator<Fst> siter(*best); !siter.Done(); siter.Next()) {
-    typename Fst::StateId s = siter.Value();
-
-    assert_bt(best->NumArcs(s) == 0, "Unexpected number of arcs in 1-best fst\n");
-    for (fst::ArcIterator<Fst> aiter(*best, s); !aiter.Done(); aiter.Next()) {
+  typename Arc::StateId state = best->Start();
+  while (state != fst::kNoStateId) {
+    bool is_final = best->Final(state) != Arc::Weight::Zero();
+    assert_bt((not is_final and best->NumArcs(state) == 1)
+           or (is_final and best->NumArcs(state) == 0), "Unexpected number of arcs in 1-best fst\n");
+    typename Arc::StateId nextstate = fst::kNoStateId;
+    for (fst::ArcIterator<Fst> aiter(*best, state); !aiter.Done(); aiter.Next()) {
       typename Fst::Arc arc = aiter.Value();
       hyp.push_back(arc.olabel);
       scores.push_back(arc.weight.Value());
+      state = arc.nextstate;
     }
-
+    state = nextstate;
   }
+
+  std::reverse(hyp.begin(), hyp.end());
+  std::reverse(scores.begin(), scores.end());
 
   delete best;
 

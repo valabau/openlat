@@ -24,6 +24,7 @@
 #define openlat_INTERACTIVE_SEQUENCE_LABELING_H_
 
 #include <tr1/unordered_map>
+#include <set>
 #include <fst/shortest-path.h>
 #include <openlat/compat.h>
 #include <openlat/utils.h>
@@ -32,6 +33,72 @@
 #include <openlat/query.h>
 
 namespace openlat {
+
+template<class Arc>
+void GetOutputSymbols(const fst::Fst<Arc> &fst, std::vector<std::set<typename Arc::Label> > *symbols) {
+  typedef typename Arc::Label Label;
+  typedef typename Arc::Weight Weight;
+  typedef typename Arc::StateId StateId;
+
+  if (not fst.Properties(fst::kTopSorted, true)) {
+    LOG(FATAL) << "VerifySequenceLabeling: the fst must be topologically sorted to verify sequence labeling\n";
+  }
+
+  if (not fst.Properties(fst::kAcyclic, true)) {
+    LOG(FATAL) << "VerifySequenceLabeling: the fst must be acyclic to verify sequence labeling\n";
+  }
+
+  // Count states
+  StateId ns = 0;
+  for (fst::StateIterator< fst::Fst<Arc> > siter(fst);
+       !siter.Done();
+       siter.Next())
+    ++ns;
+
+  vector<size_t> state_length(ns, static_cast<size_t>(-1));
+  state_length[fst.Start()] = 0;
+
+  size_t final_length = static_cast<size_t>(-1);
+  for (fst::StateIterator< fst::Fst<Arc> > siter(fst);
+       !siter.Done();
+       siter.Next())
+  {
+    StateId s = siter.Value();
+    size_t this_length = state_length[s];
+
+    if (this_length != static_cast<size_t>(-1)) {
+      symbols->resize(this_length + 1);
+      size_t na = 0;
+
+      for (fst::ArcIterator< fst::Fst<Arc> > aiter(fst, s);
+           !aiter.Done();
+           aiter.Next())
+      {
+        const Arc &arc = aiter.Value();
+
+        (*symbols)[this_length].insert(arc.olabel);
+
+        if (state_length[arc.nextstate] == static_cast<size_t>(-1)) state_length[arc.nextstate] = this_length + 1;
+        else if (state_length[arc.nextstate] != this_length + 1) {
+          LOG(FATAL) << "VerifySequenceLabeling: Fst state " << state_length[arc.nextstate]
+                     << " length from " << s << " is different from a previous state";
+        }
+
+        ++na;
+      }
+      if (!fst.Final(s).Member()) {
+        LOG(FATAL) << "VerifySequenceLabeling: Fst final weight of state " << s << " is invalid";
+      }
+      if (fst.Final(s).Value() < Weight::Zero().Value()) {
+        if (final_length == static_cast<size_t>(-1)) final_length = this_length;
+        else if (this_length != final_length) {
+          LOG(FATAL) << "VerifySequenceLabeling: Fst state " << s << " length is different from a previous final state length";
+        }
+      }
+    }
+  }
+}
+
 
 typedef struct _sPoolV {
   VLabel hyp;
@@ -373,19 +440,25 @@ struct RecomputeExpectation {
     typedef FilterMapper<Arc, Filter> Mapper;
 
     scores.clear();
-    scores.resize(assigned_labels.size(), std::numeric_limits<float>::infinity());
+    scores.resize(assigned_labels.size(), Arc::Weight::Zero().Value());
 
     hyp.resize(assigned_labels.size());
 
+    std::vector< std::set<typename Arc::Label> > members;
+    GetOutputSymbols(fst, &members);
+
   //  cout << "assigned labels " << assigned_labels.to_string() << "\n";
 
-    float max_score = INFINITY;
+    float max_score = Arc::Weight::Zero().Value();
     for (size_t label = 0; label < assigned_labels.size(); label++) {
       vector<VLabel> best_hyp(assigned_labels.size(), fst::SymbolTable::kNoSymbol);
 
       if (not assigned_labels[label]) {
-        float max_img_score = std::numeric_limits<float>::infinity();
-        for (size_t member = 0; member < fst.OutputSymbols()->NumSymbols(); member++) {
+        float max_img_score = Arc::Weight::Zero().Value();
+        for (typename std::set<typename Arc::Label>::const_iterator mem_it = members[label].begin();
+            mem_it != members[label].end(); ++mem_it)
+        {
+          size_t member = *mem_it;
           Filter filter(label, member);
           Mapper mapper(filter, dead_state);
           fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
@@ -403,7 +476,7 @@ struct RecomputeExpectation {
 
   //            cout << "score l" << label << " i" << member << " = " << score << "\n";
           scores[label] = add_log(scores[label], score);
-          if (score > max_img_score) {
+          if (score < max_img_score) {
             max_img_score = score;
             copy(lhyp.begin(), lhyp.end(), best_hyp.begin());
           }
@@ -412,7 +485,7 @@ struct RecomputeExpectation {
   //      cout << "max score l" << label << ": " << scores[label] << " ";
   //      cout << sentence_to_string(best_hyp);
   //      cout << "\n";
-        if (scores[label] > max_score) {
+        if (scores[label] < max_score) {
           max_score = scores[label];
           copy(best_hyp.begin(), best_hyp.end(), hyp.begin());
         }
