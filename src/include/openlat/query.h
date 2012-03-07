@@ -78,21 +78,20 @@ float ShortestPath(const fst::Fst<Arc> &fst, vector<VLabel> &hyp, vector<float> 
 
   typename Arc::StateId state = best->Start();
   while (state != fst::kNoStateId) {
+    // cerr << "state: " << state << "\n";
     bool is_final = best->Final(state) != Arc::Weight::Zero();
     assert_bt((not is_final and best->NumArcs(state) == 1)
            or (is_final and best->NumArcs(state) == 0), "Unexpected number of arcs in 1-best fst\n");
     typename Arc::StateId nextstate = fst::kNoStateId;
     for (fst::ArcIterator<Fst> aiter(*best, state); !aiter.Done(); aiter.Next()) {
       typename Fst::Arc arc = aiter.Value();
+      // cerr << "arc: " << arc.ilabel << " " << arc.olabel << " " << arc.weight.Value()  << " " << arc.nextstate << "\n";
       hyp.push_back(arc.olabel);
       scores.push_back(arc.weight.Value());
-      state = arc.nextstate;
+      nextstate = arc.nextstate;
     }
     state = nextstate;
   }
-
-  std::reverse(hyp.begin(), hyp.end());
-  std::reverse(scores.begin(), scores.end());
 
   delete best;
 
@@ -141,6 +140,39 @@ class FilterMapper {
 };
 
 typedef FilterMapper<fst::LogArc, LogQueryFilter> QueryMapper;
+
+template <typename L>
+void string_to_syms(const string &str, const fst::SymbolTable *symtab, std::vector<L> &syms) {
+  assert_bt(symtab != 0, "SymbolTable is null");
+  if (str == "") return;
+
+  std::vector<std::string> words_str;
+  openlat::tokenize<std::string>(str, words_str, " \t\n");
+
+  syms.clear();
+  syms.reserve(words_str.size());
+  for (size_t i = 0; i < words_str.size(); i++) {
+    L sym = symtab->Find(words_str[i]);
+    assert_bt(sym != fst::SymbolTable::kNoSymbol, "Invalid symbol '" << words_str[i] << "'\n");
+    syms.push_back(sym);
+  }
+}
+
+
+template <typename L>
+std::string syms_to_string(std::vector<L> &syms, const fst::SymbolTable *symtab) {
+  std::stringstream ss;
+
+  if (syms.empty()) return ss.str();
+
+  if (symtab != 0) ss << " " << symtab->Find(syms[0]);
+  else             ss << " " << syms[0];
+  for (size_t i = 1; i < syms.size(); i++) {
+    if (symtab != 0) ss << " " << symtab->Find(syms[i]);
+    else             ss << " " << syms[i];
+  }
+  return ss.str();
+}
 
 }
 

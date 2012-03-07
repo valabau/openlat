@@ -44,10 +44,17 @@ using namespace openlat;
 #define BOOST_TEST_MODULE TestSequenceLabeling
 #include <boost/test/unit_test.hpp>
 
+struct QueryResult {
+  VLabel label;
+  VLabel member;
+  vector<VLabel> result;
+};
+
 
 struct Lattice {
   LogVectorFst fst;
   vector<VLabel> ref;
+  vector<QueryResult> queries;
 
 
   Lattice() {
@@ -61,8 +68,8 @@ struct Lattice {
 
     // Adds state 1 and its arc.
     fst.AddState();
-    fst.AddArc(1, LogArc(1, 2, -log(0.5), 2));
-    fst.AddArc(1, LogArc(1, 0, -log(0.5), 2));
+    fst.AddArc(1, LogArc(1, 2, -log(0.6), 2));
+    fst.AddArc(1, LogArc(1, 0, -log(0.4), 2));
 
     // Adds state 2 and set its final weight.
     fst.AddState();
@@ -72,6 +79,22 @@ struct Lattice {
     ref.push_back(2);
 
     Connect(&fst);
+
+    QueryResult q;
+    q.result.resize(2);
+
+    q.label = 0; q.member = 0; q.result[0] = 0; q.result[1] = 2;
+    queries.push_back(q);
+
+    q.label = 0; q.member = 1; q.result[0] = 1; q.result[1] = 2;
+    queries.push_back(q);
+
+    q.label = 1; q.member = 2; q.result[0] = 1; q.result[1] = 2;
+    queries.push_back(q);
+
+    q.label = 1; q.member = 0; q.result[0] = 1; q.result[1] = 0;
+    queries.push_back(q);
+
   }
 
   ~Lattice() {
@@ -107,7 +130,46 @@ BOOST_AUTO_TEST_CASE(verifyFsts)
   }
 }
 
-BOOST_AUTO_TEST_CASE(verifySequenceLabeling)
+BOOST_AUTO_TEST_CASE(mapper)
+{
+  BOOST_CHECK(Verify(fst));
+
+  // obtain the shortest path with the restriction (label, member)
+  vector<VLabel> lhyp;
+  vector<float> lscores;
+  ShortestPath(fst, lhyp, lscores);
+
+  // cerr << syms_to_string(lhyp, 0) << "\n";
+  BOOST_CHECK(lhyp.size() == 2);
+  BOOST_CHECK(lhyp[0] == 1);
+  BOOST_CHECK(lhyp[1] == 2);
+
+  typename LogVectorFst::StateId dead_state = fst.AddState();
+  for (vector<QueryResult>::const_iterator it = queries.begin(); it < queries.end(); ++it) {
+    typedef LogArc Arc;
+    typedef LogQueryFilter Filter;
+    typedef FilterMapper<Arc, Filter> Mapper;
+
+    const QueryResult &q = *it;
+    Filter filter(q.label, q.member);
+    Mapper qmapper(filter, dead_state);
+    MapFst<Arc, Arc, Mapper> _fst(fst, qmapper);
+
+    // obtain the shortest path with the restriction (label, member)
+    lhyp.clear();
+    lscores.clear();
+    ShortestPath(_fst, lhyp, lscores);
+
+    BOOST_CHECK(lhyp.size() == q.result.size());
+    for (size_t i = 0; i < q.result.size(); i++) {
+      BOOST_CHECK(lhyp[i] == q.result[i]);
+    }
+  }
+  fst.DeleteStates(vector<LogVectorFst::StateId>(1, dead_state));
+
+}
+
+BOOST_AUTO_TEST_CASE(oracle)
 {
   BOOST_CHECK(Verify(fst));
 

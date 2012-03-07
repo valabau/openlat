@@ -37,36 +37,6 @@ using namespace fst;
 using namespace openlat;
 
 
-void string_to_syms(const string &str, const SymbolTable *symtab, vector<VLabel> &syms) {
-  if (str == "") return;
-
-  vector<string> words_str;
-  tokenize<string>(str, words_str, " \t\n");
-
-  syms.clear();
-  syms.reserve(words_str.size());
-  for (size_t i = 0; i < words_str.size(); i++) {
-    VLabel sym = symtab->Find(words_str[i]);
-    assert_bt(sym != SymbolTable::kNoSymbol, "Invalid symbol '" << words_str[i] << "'\n");
-    syms.push_back(sym);
-  }
-}
-
-
-string syms_to_string(vector<VLabel> &syms, const SymbolTable *symtab) {
-  stringstream ss;
-
-  if (syms.empty()) return ss.str();
-
-  ss << symtab->Find(syms[0]);
-  for (size_t i = 1; i < syms.size(); i++) {
-    ss << " " << symtab->Find(syms[i]);
-  }
-
-  return ss.str();
-}
-
-
 int main (int argc, char *argv[]) {
   //INIT_TRACE();
 

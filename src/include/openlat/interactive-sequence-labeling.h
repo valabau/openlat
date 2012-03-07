@@ -102,9 +102,10 @@ void GetOutputSymbols(const fst::Fst<Arc> &fst, std::vector<std::set<typename Ar
 
 typedef struct _sPoolV {
   VLabel hyp;
-  float score;
+  float score; //< score of the hypothesis in the log semiring (the smaller the better)
   _sPoolV(VLabel _hyp, float _score): hyp(_hyp), score(_score) {}
   bool operator<(const _sPoolV &other) const { return score < other.score; }
+  bool operator>(const _sPoolV &other) const { return score > other.score; }
 } PoolV;
 
 typedef std::tr1::unordered_map<SampleLabel, PoolV> Pool;
@@ -439,45 +440,48 @@ struct RecomputeExpectation {
   void operator()(const fst::VectorFst<Arc> &fst, typename fst::VectorFst<Arc>::StateId dead_state, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
     typedef FilterMapper<Arc, Filter> Mapper;
 
+    // reset scores and hyp
     scores.clear();
     scores.resize(assigned_labels.size(), Arc::Weight::Zero().Value());
-
     hyp.resize(assigned_labels.size());
+    float max_score = Arc::Weight::Zero().Value();
 
+    // obtain the available members for each label
     std::vector< std::set<typename Arc::Label> > members;
     GetOutputSymbols(fst, &members);
 
-  //  cout << "assigned labels " << assigned_labels.to_string() << "\n";
-
-    float max_score = Arc::Weight::Zero().Value();
+    // for each unassigned label
     for (size_t label = 0; label < assigned_labels.size(); label++) {
-      vector<VLabel> best_hyp(assigned_labels.size(), fst::SymbolTable::kNoSymbol);
-
       if (not assigned_labels[label]) {
-        float max_img_score = Arc::Weight::Zero().Value();
+
+        // reset the best hyp
+        vector<VLabel> best_hyp(assigned_labels.size(), fst::SymbolTable::kNoSymbol);
+        float max_member_score = Arc::Weight::Zero().Value();
+        // for each possible member for this label
         for (typename std::set<typename Arc::Label>::const_iterator mem_it = members[label].begin();
             mem_it != members[label].end(); ++mem_it)
         {
           size_t member = *mem_it;
+
+          // build a fst where (label, member) is selected
+          // and some arcs are disabled according to mapper
           Filter filter(label, member);
           Mapper mapper(filter, dead_state);
           fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
 
+          // obtain the shortest path with the restriction (label, member)
           vector<VLabel> lhyp;
           vector<float> lscores;
           float score = ShortestPath(_fst, lhyp, lscores);
-  //            if (label == 0 and score < 1e-5) {
-  //              fst_kbest->write(cout);
-  //            }
-  //            cout << "count " << count << "\n";
-  //            cout << "score l" << label << " i" << member << ": " << score << " ";
-  //            cout << sentence_to_string(lhyp);
-  //            cout << "\n";
 
-  //            cout << "score l" << label << " i" << member << " = " << score << "\n";
-          scores[label] = add_log(scores[label], score);
-          if (score < max_img_score) {
-            max_img_score = score;
+          // cerr << "score l" << label << " i" << member << ": " << score << " ";
+          // cerr << syms_to_string(lhyp, fst.OutputSymbols());
+          // cerr << "\n";
+
+          // accumulate the score for this label
+          scores[label] = -add_log(-scores[label], -score);
+          if (score < max_member_score) {
+            max_member_score = score;
             copy(lhyp.begin(), lhyp.end(), best_hyp.begin());
           }
         }
@@ -485,6 +489,8 @@ struct RecomputeExpectation {
   //      cout << "max score l" << label << ": " << scores[label] << " ";
   //      cout << sentence_to_string(best_hyp);
   //      cout << "\n";
+
+        // if the score for this label is better than for the rest, update
         if (scores[label] < max_score) {
           max_score = scores[label];
           copy(best_hyp.begin(), best_hyp.end(), hyp.begin());
