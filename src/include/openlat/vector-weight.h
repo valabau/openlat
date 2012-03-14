@@ -61,6 +61,12 @@ public:
     values_ = w;
   }
 
+  template <typename T>
+  VectorWeight(const vector<T> &w): type_(VECTOR_WEIGHT_OTHER) {
+    values_.resize(w.size());
+    for (size_t i = 0; i < w.size(); i++) values_[i] = W(w[i]);
+  }
+
   template <class Iterator>
   VectorWeight(Iterator begin, Iterator end): type_(VECTOR_WEIGHT_OTHER) {
     values_.resize(end - begin);

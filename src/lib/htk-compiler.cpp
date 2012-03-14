@@ -23,9 +23,12 @@
 #include "htk.h"
 #include <openlat/htk-compiler.h>
 
+using namespace fst;
+
 namespace openlat {
 
-LogLinearFst*  ReadHtk(std::istream &istrm, const std::string &source) {
+template <typename Arc>
+MutableFst<Arc>*        ReadHtk(std::istream &istrm, const std::string &source) {
   HtkContext context(istrm, source);
 
   int status = htk_parse(&context);
@@ -33,8 +36,12 @@ LogLinearFst*  ReadHtk(std::istream &istrm, const std::string &source) {
   if (status == 1) LOG(FATAL) << " Parsing '" << source << "' failed because of invalid input ";
   else if (status == 2) LOG(FATAL) << " Parsing '" << source << "' failed due to memory exhaustion ";
 
-  return context.htk.CreateFst();
+  return context.htk.CreateFst<Arc>();
 }
+
+fst::MutableFst<fst::LogArc>* ReadHtkLogArc(std::istream &istrm, const std::string &source) { return ReadHtk<fst::LogArc>(istrm, source); }
+fst::MutableFst<fst::StdArc>* ReadHtkStdArc(std::istream &istrm, const std::string &source) { return ReadHtk<fst::StdArc>(istrm, source); }
+fst::MutableFst<LogLinearArc>* ReadHtkLogLinearArc(std::istream &istrm, const std::string &source) { return ReadHtk<LogLinearArc>(istrm, source); }
 
 
 

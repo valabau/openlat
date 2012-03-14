@@ -23,15 +23,13 @@
 %token <dval> FLOAT
 %token <sval> STRING
 %token <sval> UNK_OPTION
-%token        SLF_VERSION UTTERANCE SUBLAT BASE LMNAME LMSCALE WDPENALTY NDPENALTY ECSCALE
+%token        SLF_VERSION UTTERANCE SUBLAT BASE LMNAME LMSCALE WDPENALTY NDPENALTY
 %token        LMINSCALE LMOUTSCALE WDPENALTY_OUTPUT LMIN LMOUT OUTPUT
 %token        ACSCALE AMSCALE VOCAB COVERAGE
-%token        INITIAL_NODE FINAL_NODE FEATURES
+%token        INITIAL_NODE FINAL_NODE
 %token        NODES LINKS
 %token        NODE TIME WORD SUBS VAR
 %token        LINK START_NODE END_NODE DIV ACOUSTIC NGRAM LANGUAGE POSTERIOR
-%token        EXPECTED_ERROR CORRECT ESTIMATED_CORRECT
-%token        ERR
 
 /* Type definition for rules */
 %type  <dval> number
@@ -52,9 +50,8 @@
 
 	int htk_lex(YYSTYPE* lvalp, YYLTYPE* llocp, void* scanner);		
 
-	void htk_error(YYLTYPE* locp, openlat::HtkContext* context, const char* err)
-	{
-		cout << locp->first_line << ":" << err << endl;
+	void htk_error(YYLTYPE* locp, openlat::HtkContext* context, const char* err) {
+		std::cerr << context->source << ": " << locp->first_line << ":" << err << endl;
 	}
 
 	#define scanner context->scanner
@@ -107,18 +104,18 @@ option: SLF_VERSION STRING { context->htk.version = string($2); delete[] $2; }  
       | SUBLAT      STRING { context->htk.sublat = string($2); delete[] $2; }    ENDL
       | BASE        number { context->htk.base = $2; }
       | LMNAME      STRING { context->htk.lmname = string($2); delete[] $2; }    ENDL
-      | LMSCALE     number { context->htk.assignWeight(HtkLattice::LANGUAGE, $2); }
-      | LMINSCALE   number { context->htk.assignWeight(HtkLattice::LMIN, $2); }
-      | LMOUTSCALE  number { context->htk.assignWeight(HtkLattice::LMOUT, $2); }
+      | LMSCALE     number { context->htk.assignWeight(HtkWeights::LANGUAGE, $2); }
+      | LMINSCALE   number { context->htk.assignWeight(HtkWeights::LMIN, $2); }
+      | LMOUTSCALE  number { context->htk.assignWeight(HtkWeights::LMOUT, $2); }
       /* Word Penalty in log, as SRILM does */
       //| WDPENALTY   number { context->htk.weights.wdpenalty = context->htk.changeBase($2); }
-      | WDPENALTY   number { context->htk.assignWeight(HtkLattice::WDPENALTY, $2); }
-      | NDPENALTY   number { context->htk.assignWeight(HtkLattice::NOISE_PENALTY, $2); }
-      | WDPENALTY_OUTPUT number { context->htk.assignWeight(HtkLattice::OUTPUT_WDPENALTY, $2); }
-      | ACSCALE     number { context->htk.assignWeight(HtkLattice::ACOUSTIC, $2); }
+      | WDPENALTY   number { context->htk.assignWeight(HtkWeights::WDPENALTY, $2); }
+      | NDPENALTY   number { context->htk.assignWeight(HtkWeights::NOISE_PENALTY, $2); }
+      | WDPENALTY_OUTPUT number { context->htk.assignWeight(HtkWeights::OUTPUT_WDPENALTY, $2); }
+      | ACSCALE     number { context->htk.assignWeight(HtkWeights::ACOUSTIC, $2); }
       | AMSCALE     number { context->htk.weights.amscale = $2; }
       | VOCAB       STRING { context->htk.vocab = string($2); delete[] $2; }   ENDL
-      | XSCALE      number { context->htk.assignWeight(HtkLattice::feature_t(HtkLattice::XSCORE + $1-1), $2); }
+      | XSCALE      number { context->htk.assignWeight(HtkWeights::feature_t(HtkWeights::XSCORE + $1-1), $2); }
       | INITIAL_NODE  INT  { context->htk.start_name = to_string($2); }
       | FINAL_NODE    INT  { context->htk.end_name   = to_string($2); }
       | UNK_OPTION  STRING ENDL { delete[] $1; delete[] $2; }
@@ -162,7 +159,7 @@ node_option: TIME number { context->node_ptr->time = $2; }
 
            /* Link info in node   
            | VAR  INT    { context->link_ptr->var = $2; }
-           | ACOUSTIC   number { context->htk.assign(context->link_ptr, HtkLattice::ACOUSTIC, $2); }
+           | ACOUSTIC   number { context->htk.assign(context->link_ptr, HtkWeights::ACOUSTIC, $2); }
            | DIV        STRING { context->link_ptr->div = string($2); delete[] $2; }
            | WORD       STRING { context->htk.assignInput(context->link_ptr, string($2)); delete[] $2; }
            | OUTPUT     STRING { context->htk.assignOutput(context->link_ptr, string($2)); delete[] $2; }
@@ -187,13 +184,13 @@ link_option: START_NODE INT    { context->link_ptr->start = context->htk.getStat
            | OUTPUT     STRING { context->htk.assignOutput(context->link_ptr, string($2)); delete[] $2; }
            | VAR        INT    { context->link_ptr->var = $2; }
            | DIV        STRING { context->link_ptr->div = string($2); delete[] $2; }
-           | ACOUSTIC   number { context->htk.assign(context->link_ptr, HtkLattice::ACOUSTIC, $2); }
-           | LANGUAGE   number { context->htk.assign(context->link_ptr, HtkLattice::LANGUAGE, $2); }
-           | NGRAM      number { context->htk.assign(context->link_ptr, HtkLattice::NGRAM, $2); }
-           | LMIN       number { context->htk.assign(context->link_ptr, HtkLattice::LMIN, $2); }
-           | LMOUT      number { context->htk.assign(context->link_ptr, HtkLattice::LMOUT, $2); }
-           | POSTERIOR  number { context->htk.assign(context->link_ptr, HtkLattice::POSTERIOR, $2); }
-           | XSCORE     number { context->htk.assign(context->link_ptr, HtkLattice::feature_t(HtkLattice::XSCORE + $1-1), $2); }
+           | ACOUSTIC   number { context->htk.assign(context->link_ptr, HtkWeights::ACOUSTIC, $2); }
+           | LANGUAGE   number { context->htk.assign(context->link_ptr, HtkWeights::LANGUAGE, $2); }
+           | NGRAM      number { context->htk.assign(context->link_ptr, HtkWeights::NGRAM, $2); }
+           | LMIN       number { context->htk.assign(context->link_ptr, HtkWeights::LMIN, $2); }
+           | LMOUT      number { context->htk.assign(context->link_ptr, HtkWeights::LMOUT, $2); }
+           | POSTERIOR  number { context->htk.assign(context->link_ptr, HtkWeights::POSTERIOR, $2); }
+           | XSCORE     number { context->htk.assign(context->link_ptr, HtkWeights::feature_t(HtkWeights::XSCORE + $1-1), $2); }
            | UNK_OPTION STRING { delete[] $1; delete[] $2; }
 
 /* Helper rules */

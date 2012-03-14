@@ -11,6 +11,7 @@
 %{
 	#include "htk.h"
 	#include "yacc.htk.hpp"
+	#include <openlat/iofilter.h>
 
   using namespace openlat;
 
@@ -24,7 +25,7 @@
     return ptr;
   }
   
-	void htk_error(YYLTYPE* locp, HtkContext* context, const char* err);
+  void htk_error(YYLTYPE* locp, HtkContext* context, const char* err);
 
   #define MAX_COND_LEVEL 128
   #undef  BEGIN
@@ -33,21 +34,11 @@
   int htk_cond_idx = 0;
   int htk_cond_stack[MAX_COND_LEVEL];
 
+  #define YY_EXTRA_TYPE HtkContext*
+  #define YY_USER_ACTION yylloc->first_line = yylineno;
 
-	#define YY_EXTRA_TYPE HtkContext*
-	#define YY_USER_ACTION yylloc->first_line = yylineno;
+  #define YY_INPUT(buf,result,max_size) result = istream_input<HtkContext>(*yyextra, buf, max_size)	
 
-	#define YY_INPUT(buf,result,max_size) \
-	{ \
-		char c; \
-		yyextra->is >> c; \
-		if (yyextra->is.eof()) \
-			result = YY_NULL; \
-		else { \
-			buf[0] = c; \
-			result = 1; \
-		} \
-	}
 %}
 
 %x INCOMMENT LONGSTR NODELINE LINKLINE NWSTR
@@ -102,7 +93,6 @@ IDENT               {IDENTCHARS}({IDENTCHARS}|[0-9])*
 "ndpenalty"{WHITESPACE}*"="       { return NDPENALTY; }
 "acscale"{WHITESPACE}*"="         { return ACSCALE; }
 "amscale"{WHITESPACE}*"="         { return AMSCALE; }
-"ecscale"{WHITESPACE}*"="         { return ECSCALE; }
 "start"{WHITESPACE}*"="           { return INITIAL_NODE; }
 "end"{WHITESPACE}*"="             { return FINAL_NODE; }
 "x"{INTEGER}"scale"{WHITESPACE}*"=" { errno = 0;
@@ -114,12 +104,11 @@ IDENT               {IDENTCHARS}({IDENTCHARS}|[0-9])*
                          
                                     return XSCALE; 
                                   }
-("features"|"f"){WHITESPACE}*"="  { BEGIN(NWSTR); return FEATURES; }
 "vocab"{WHITESPACE}*"="           { BEGIN(LONGSTR); return VOCAB; }
 
 <LONGSTR>{
   {IN_STR}     { // Copy and don't remove "" and '' 
-                 yylval->sval = htk_txtcpy(yytext, false); 
+                 yylval->sval = htk_txtcpy(yytext, false);
                  return STRING; 
                }
   {NEWLINE}    { 
@@ -167,10 +156,6 @@ IDENT               {IDENTCHARS}({IDENTCHARS}|[0-9])*
   ("lmin"){WHITESPACE}*"="         { return LMIN; }
   ("lmout"){WHITESPACE}*"="        { return LMOUT; }
   ("posterior"|"p"){WHITESPACE}*"=" { return POSTERIOR; }
-  ("error"|"e"){WHITESPACE}*"="    { return EXPECTED_ERROR; }
-  ("correct"|"c"){WHITESPACE}*"="  { return CORRECT; }
-  ("estimated_correct"|"c*"){WHITESPACE}*"="    { return ESTIMATED_CORRECT; }
-  ("features"|"f"){WHITESPACE}*"=" { BEGIN(NWSTR); return FEATURES; }
   "x"{INTEGER}{WHITESPACE}*"="     { errno = 0;
                                     long n = strtol(yytext + 1,NULL,10); 
                                     if (! (INT_MIN <= n && n <= INT_MAX && errno != ERANGE)) {
@@ -277,7 +262,7 @@ IDENT               {IDENTCHARS}({IDENTCHARS}|[0-9])*
                   return UNK_OPTION; 
                 }
 
-<*>.            { return ERR; }
+<*>.            { htk_error(yylloc, yyextra, "invalid character"); exit(-1); }
 
 %%
 
@@ -290,7 +275,7 @@ void HtkContext::init_scanner()
 void HtkContext::destroy_scanner()
 {
 	yylex_destroy(scanner);
-  scanner = 0;
+  	scanner = 0;
 }
 
 
