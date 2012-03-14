@@ -31,7 +31,7 @@ namespace openlat {
   class ifilter : public std::istream {
   public:
     ifilter(): std::istream(0), file_(0), buf_(0) {};
-    ifilter(const char* name, std::ios_base::openmode mode = ios_base::in): std::istream(0), buf_(0) { open(name, mode); };
+    ifilter(const char* name, std::ios_base::openmode mode = ios_base::in): std::istream(0), file_(0), buf_(0) { open(name, mode); };
     virtual ~ifilter() { close(); }
     void open(const char* name, std::ios_base::openmode mode = ios_base::in);
     void close() { if (buf_ != 0) { delete buf_; buf_ = 0; }; if (file_ != 0) { file_->close(); delete file_; file_ = 0; }  }
@@ -43,10 +43,10 @@ namespace openlat {
   class ofilter : public std::ostream {
   public:
     ofilter(): std::ostream(0), file_(0), buf_(0) {}
-    ofilter(const char* name, std::ios_base::openmode mode = ios_base::out): std::ostream(0), buf_(0) { open(name, mode); }
+    ofilter(const char* name, std::ios_base::openmode mode = ios_base::out): std::ostream(0), file_(0), buf_(0) { open(name, mode); }
     virtual ~ofilter() { close(); }
     void open(const char* name, std::ios_base::openmode mode = ios_base::out);
-    void close() { if (buf_ != 0) { delete buf_; buf_ = 0; }; if (file_ != 0) { file_->close(); delete file_; file_ = 0; }  }
+    void close() { if (buf_ != 0) { delete buf_; buf_ = 0; }; if (file_ != 0) { file_->close(); delete file_; file_ = 0; }; }
     ofilter& flush () { std::ostream::flush(); if (file_ != 0) file_->flush(); else std::cout.flush(); return *this;}
   private:
     std::ofstream *file_;

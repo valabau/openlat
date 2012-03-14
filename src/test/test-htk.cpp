@@ -30,6 +30,7 @@
 #include <openlat/rmarc.h>
 #include <openlat/utils.h>
 #include <openlat/htk-compiler.h>
+#include <openlat/iofilter.h>
 #include <openlat/approx-shortest-distance.h>
 
 
@@ -67,9 +68,24 @@ BOOST_FIXTURE_TEST_SUITE(Htk, Lattice)
 BOOST_AUTO_TEST_CASE(Htk)
 {
   //LogLinearFst *fst = ReadHtk<LogLinearFst>();
-  istringstream is(file_content);
-  MutableFst<StdArc> *fst = ReadHtkStdArc(is, "<string>");
-  Verify(*fst);
+  {
+    istringstream is(file_content);
+    MutableFst<StdArc> *fst = ReadHtkStdArc(is, "<string>");
+    Verify(*fst);
+
+    fst->Write("test-lat.fst");
+
+    delete fst;
+  }
+  {
+    ifilter is("src/test/e02-094-s00.lat.bz2");
+    MutableFst<StdArc> *fst = ReadHtkStdArc(is, "src/test/e02-094-s00.lat.bz2");
+    Verify(*fst);
+
+    fst->Write("test-lat2.fst");
+
+    delete fst;
+  }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

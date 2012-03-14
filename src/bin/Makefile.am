@@ -1,5 +1,8 @@
 AM_CPPFLAGS = $(WARNING_CXXFLAGS) $(COMPILANCE_CXXFLAGS) -I$(top_srcdir)/src/include
 AM_LDFLAGS = -lfst
 
-bin_PROGRAMS = interactive-sequence-labeling
+bin_PROGRAMS = interactive-sequence-labeling lat-compile
+LDADD = ../lib/libopenlat.la -lfst -ldl -lz -lbz2  
+
 interactive_sequence_labeling_SOURCES = interactive-sequence-labeling.cpp
+lat_compile_SOURCES = lat-compile.cpp
