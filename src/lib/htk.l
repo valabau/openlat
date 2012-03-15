@@ -1,3 +1,4 @@
+/* based on http://www.phpcompiler.org/articles/reentrantparser.html */
 %option reentrant
 %option prefix="htk_"
 %option bison-bridge

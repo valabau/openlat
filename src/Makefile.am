@@ -1,5 +1,5 @@
-DIST_SUBDIRS = bin lib test
-SUBDIRS = bin lib
+DIST_SUBDIRS = lib bin test
+SUBDIRS = lib bin
 if MAKE_TEST 
  SUBDIRS += test
 endif

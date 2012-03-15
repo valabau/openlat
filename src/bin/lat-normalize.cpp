@@ -14,11 +14,12 @@
  *   limitations under the License.
  *
  * 
- * lat-compile.cpp
+ * lat-normalize.cpp
  *
- *  Created on: 17/02/2012
+ *  Created on: 15/03/2012
  *      Author: valabau
  */
+
 
 
 #include <cmath>
@@ -26,9 +27,10 @@
 #include <sstream>
 
 #include <fst/fstlib.h>
+#include <fst/mutable-fst.h>
 #include <openlat/compat.h>
 #include <openlat/utils.h>
-#include <openlat/htk-compiler.h>
+#include <openlat/normalize.h>
 #include <openlat/iofilter.h>
 
 
@@ -38,7 +40,7 @@ using namespace std;
 using namespace fst;
 using namespace openlat;
 
-extern int htk_debug;
+typedef fst::VectorFst<fst::LogArc> LogVectorFst;
 
 int main(int argc, char *argv[]) {
   const string stdio_str("-");
@@ -49,8 +51,10 @@ int main(int argc, char *argv[]) {
   if (argc >= 3) output = argv[2];
   {
     ifilter is(input);
-    MutableFst<LogArc> *fst = ReadHtkLogArc(is, input);
+    MutableFst<LogArc> *fst = MutableFst<LogArc>::Read(is, FstReadOptions(input));
     Verify(*fst);
+
+    Normalize(fst);
 
     FstWriteOptions opts(output);
     ofilter os(output);

@@ -70,7 +70,7 @@ BOOST_AUTO_TEST_CASE(Htk)
   //LogLinearFst *fst = ReadHtk<LogLinearFst>();
   {
     istringstream is(file_content);
-    MutableFst<StdArc> *fst = ReadHtkStdArc(is, "<string>");
+    MutableFst<LogArc> *fst = ReadHtkLogArc(is, "<string>");
     Verify(*fst);
 
     fst->Write("test-lat.fst");
@@ -78,8 +78,8 @@ BOOST_AUTO_TEST_CASE(Htk)
     delete fst;
   }
   {
-    ifilter is("src/test/e02-094-s00.lat.bz2");
-    MutableFst<StdArc> *fst = ReadHtkStdArc(is, "src/test/e02-094-s00.lat.bz2");
+    ifilter is("src/test/dni.lat.bz2");
+    MutableFst<LogArc> *fst = ReadHtkLogArc(is, "src/test/dni.lat.bz2");
     Verify(*fst);
 
     fst->Write("test-lat2.fst");

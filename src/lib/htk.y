@@ -1,3 +1,4 @@
+// based on http://www.phpcompiler.org/articles/reentrantparser.html
 %pure-parser
 %name-prefix="htk_"
 %locations
