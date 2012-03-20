@@ -88,6 +88,9 @@ BOOST_AUTO_TEST_CASE(normalize)
   fst.Write("unormalized.fst");
 
   Normalize(&fst);
+  float entropy = Entropy(fst);
+  cerr << "entropy: " << entropy << "\n";
+  cerr << "perplexity: " << exp(entropy) << "\n";
 
   vector<LogWeight>::const_iterator wit = weights.begin();
 
@@ -101,6 +104,8 @@ BOOST_AUTO_TEST_CASE(normalize)
     }
   }
   fst.Write("normalized.fst");
+
+  BOOST_CHECK(VerifyProbabilistic(fst, 0));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
