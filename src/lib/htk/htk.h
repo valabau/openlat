@@ -25,6 +25,7 @@
 
 #include <string>
 #include <vector>
+#include <deque>
 #include <tr1/unordered_map>
 
 #include <fst/fst.h>
@@ -313,6 +314,8 @@ class HtkContext {
 public:
 
    void* scanner;   // the scanner state
+   std::deque<int> stack; // stack for scanner context nesting
+
    istream& is;     // input stream
    string source;   // filename
 

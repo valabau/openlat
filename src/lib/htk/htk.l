@@ -25,10 +25,8 @@ using namespace openlat::htk;
 
   #define MAX_COND_LEVEL 128
   #undef  BEGIN
-  #define BEGIN openlat_htk_cond_stack[openlat_htk_cond_idx++] = yyg->yy_start; (yyg->yy_start) = 1 + 2 *
-  #define END() (yyg->yy_start) = openlat_htk_cond_stack[--openlat_htk_cond_idx] 
-  int openlat_htk_cond_idx = 0;
-  int openlat_htk_cond_stack[MAX_COND_LEVEL];
+  #define BEGIN yyextra->stack.push_back(yyg->yy_start); (yyg->yy_start) = 1 + 2 *
+  #define END() (yyg->yy_start) = yyextra->stack.back(); yyextra->stack.pop_back(); 
 
 
 %}
