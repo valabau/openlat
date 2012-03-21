@@ -53,14 +53,6 @@ namespace openlat {
     std::streambuf *buf_;
   };
 
-  template <typename Context>
-  inline int istream_input(Context &ctx, char *buf, int max_size) {
-    if (not ctx.is.eof()) {
-      ctx.is.read(buf, max_size);
-      return ctx.is.gcount();
-    }
-    else return 0;
-  }
 }
 
 #endif /* openlat_IOFILTER_H_ */

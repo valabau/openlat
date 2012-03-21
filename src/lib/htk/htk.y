@@ -1,12 +1,19 @@
 // based on http://www.phpcompiler.org/articles/reentrantparser.html
 %pure-parser
-%name-prefix="htk_"
+%skeleton "lalr1.cc"                          /*  -*- C++ -*- */
+%define namespace "openlat::htk"
+%name-prefix="openlat_htk_"
 %locations
 %defines
 %debug
 %error-verbose
-%parse-param { openlat::HtkContext* context }
+%parse-param { openlat::htk::HtkContext* context }
 %lex-param { void* scanner  }
+
+%{
+	#include <iostream>
+	#include "htk.h"
+%}
 
 // Symbols.
 %union
@@ -42,18 +49,12 @@
 
 
 %{
-	#include <iostream>
-	#include "htk.h"
 	#include <openlat/utils.h>
 
 	using namespace std;
 	using namespace openlat;
 
-	int htk_lex(YYSTYPE* lvalp, YYLTYPE* llocp, void* scanner);		
-
-	void htk_error(YYLTYPE* locp, openlat::HtkContext* context, const char* err) {
-		std::cerr << context->source << ": " << locp->first_line << ":" << err << endl;
-	}
+	int openlat_htk_lex(YYSTYPE* lvalp, YYLTYPE* llocp, void* scanner);		
 
 	#define scanner context->scanner
 	
@@ -119,7 +120,7 @@ option: SLF_VERSION STRING { context->htk.version = string($2); delete[] $2; }  
       | XSCALE      number { context->htk.assignWeight(HtkWeights::feature_t(HtkWeights::XSCORE + $1-1), $2); }
       | INITIAL_NODE  INT  { context->htk.start_name = to_string($2); }
       | FINAL_NODE    INT  { context->htk.end_name   = to_string($2); }
-      | UNK_OPTION  STRING ENDL { delete[] $1; delete[] $2; }
+      | UNK_OPTION  STRING ENDL { error(yyloc, "Unknown option " + string($1) + "=" + string($2)); delete[] $1; delete[] $2; }
       | ENDL
 
 /* Size definitions */

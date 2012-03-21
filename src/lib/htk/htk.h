@@ -38,7 +38,7 @@ using namespace std;
 using namespace fst;
 
 
-namespace openlat {
+namespace openlat { namespace htk {
 
 class HtkLink {
 public:
@@ -341,9 +341,30 @@ protected:
    void destroy_scanner();
 };
 
-}
 
-int htk_parse(openlat::HtkContext*);
+int htk_parse(HtkContext*);
+
+} }
+
+
+// defines for parser and scanner
+#include "yacc.hpp"
+#include "location.hh"
+#include "position.hh"
+#include "stack.hh"
+#include "../parser-utils.h"
+#include <openlat/iofilter.h>
+
+#define YYSTYPE openlat::htk::parser::semantic_type
+#define YYLTYPE openlat::htk::location
+#define YY_EXTRA_TYPE openlat::htk::HtkContext*
+/*  #define YY_USER_ACTION yylloc->first_line = yylineno; */
+
+namespace openlat { namespace htk {
+void htk_error(YYLTYPE* locp, HtkContext* context, const char* err);
+} }
+
+#define YY_INPUT(buf,result,max_size) result = istream_input<HtkContext>(*yyextra, buf, max_size)
 
 
 

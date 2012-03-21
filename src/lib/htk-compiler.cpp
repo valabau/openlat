@@ -20,7 +20,7 @@
  *      Author: valabau
  */
 
-#include "htk.h"
+#include "htk/htk.h"
 #include <openlat/htk-compiler.h>
 
 using namespace fst;
@@ -28,10 +28,11 @@ using namespace fst;
 namespace openlat {
 
 template <typename Arc>
-MutableFst<Arc>*        ReadHtk(std::istream &istrm, const std::string &source) {
-  HtkContext context(istrm, source);
+MutableFst<Arc>* ReadHtk(std::istream &istrm, const std::string &source) {
+  htk::HtkContext context(istrm, source);
+  htk::parser parser(&context);
 
-  int status = htk_parse(&context);
+  int status = parser.parse();
 
   if (status == 1) LOG(FATAL) << " Parsing '" << source << "' failed because of invalid input ";
   else if (status == 2) LOG(FATAL) << " Parsing '" << source << "' failed due to memory exhaustion ";
