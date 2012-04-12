@@ -128,6 +128,15 @@ T convert_string(const string& text) {
   return ret;
 }
 
+//template <>
+//size_t convert_string<size_t>(const string& text) {
+//  size_t ret;
+//  std::istringstream ss(text, std::istringstream::in);
+//  ss >> ret;
+//  if (ss.fail()) assert_bt(false, "Unknown error");
+//  return ret;
+//}
+
 template <typename T>
 string to_string(const T& value) {
   std::ostringstream ss(std::ostringstream::out);
