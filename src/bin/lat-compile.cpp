@@ -44,10 +44,28 @@ int main(int argc, char *argv[]) {
   const string stdio_str("-");
   const char * input = stdio_str.c_str();
   const char *output = stdio_str.c_str();
+  bool do_standard = false;
+
+  if (argc >= 2 and argv[1][0] == '-' and argv[1][1] == 's') {
+    argc--;
+    do_standard = true;
+  }
 
   if (argc >= 2) input = argv[1];
   if (argc >= 3) output = argv[2];
-  {
+
+  if (do_standard) {
+    ifilter is(input);
+    MutableFst<StdArc> *fst = ReadHtkStdArc(is, input);
+    Verify(*fst);
+
+    FstWriteOptions opts(output);
+    ofilter os(output);
+    fst->Write(os, opts);
+
+    delete fst;
+  }
+  else {
     ifilter is(input);
     MutableFst<LogArc> *fst = ReadHtkLogArc(is, input);
     Verify(*fst);

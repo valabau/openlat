@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
   const char *output = stdio_str.c_str();
   bool do_viterbi = false;
 
-  if (argc >= 2 and argv[1][0] == '-' and argv[1] [1] == 'v') {
+  if (argc >= 2 and argv[1][0] == '-' and argv[1][1] == 'v') {
     argc--;
     do_viterbi = true;
   }
