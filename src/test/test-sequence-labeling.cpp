@@ -144,7 +144,7 @@ BOOST_AUTO_TEST_CASE(mapper)
   BOOST_CHECK(lhyp[0] == 1);
   BOOST_CHECK(lhyp[1] == 2);
 
-  typename LogVectorFst::StateId dead_state = fst.AddState();
+  LogVectorFst::StateId dead_state = fst.AddState();
   for (vector<QueryResult>::const_iterator it = queries.begin(); it < queries.end(); ++it) {
     typedef LogArc Arc;
     typedef LogQueryFilter Filter;

@@ -97,6 +97,9 @@ void SumSuffixes(const fst::Fst<Arc> &fst, fst::MutableFst<Arc> *wordlist) {
       wordweights.insert(std::make_pair(arc.ilabel, Divide(arc.weight, norm)));
     }
   }
+  if (fst.Final(fst.Start()) != Weight::Zero()) {
+    wordweights.insert(std::make_pair(0, Divide(fst.Final(fst.Start()), norm)));
+  }
 
   typename LabelWeightMap::iterator w_it;
   StateId start = wordlist->AddState();
