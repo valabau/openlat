@@ -33,3 +33,5 @@ endif
 #lex.htk.cpp: htk.l
 #	$(LEX) $(LFLAGS) $(AM_LFLAGS) --outfile=lex.htk.cpp htk.l 
 
+includedir = $(prefix)/include/$(PACKAGE)
+include_HEADERS = include/openlat/rmprefix.h include/openlat/iofilter.h include/openlat/approx-shortest-distance.h include/openlat/rmarc.h include/openlat/query.h include/openlat/approx-shortest-path.h include/openlat/vector-weight.h include/openlat/htk-compiler.h include/openlat/utils.h include/openlat/verify.h include/openlat/compat.h include/openlat/normalize.h include/openlat/interactive-sequence-labeling.h
