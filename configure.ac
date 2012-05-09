@@ -14,7 +14,6 @@ LT_INIT
 LTDL_INIT
 
 
-YACC=bison
 # Checks for programs.
 AC_DISABLE_STATIC
 AC_PROG_LIBTOOL
@@ -22,8 +21,16 @@ AC_PROG_CXX
 AC_LANG(C++)
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
-AC_PROG_YACC
-AM_PROG_LEX
+#AM_PROG_LEX
+AC_CHECK_PROGS(LEX,flex lex, no)
+if test "x$LEX" = "xno" ; then
+    AC_MSG_ERROR([lex is required])
+fi
+#AC_PROG_YACC
+AC_CHECK_PROGS(YACC,'bison -y' byacc yacc,no)
+if test "x$YACC" = "xno" ; then
+    AC_MSG_ERROR([bison is required])
+fi
 
 # boost
 AX_BOOST_BASE(1.41)

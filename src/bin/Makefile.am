@@ -2,7 +2,7 @@ AM_CPPFLAGS = $(WARNING_CXXFLAGS) $(COMPILANCE_CXXFLAGS) -I$(top_srcdir)/src/inc
 AM_LDFLAGS = -lfst
 
 bin_PROGRAMS = interactive-sequence-labeling lat-compile lat-normalize lat-rmprefix lat-sumsuffixes
-LDADD = ../lib/libopenlat.la -lfst -ldl -lz -lbz2  
+LDADD = ../lib/libopenlat.la -lfst -ldl $(BOOST_IOSTREAMS_LIB)
 
 interactive_sequence_labeling_SOURCES = interactive-sequence-labeling.cpp
 lat_compile_SOURCES = lat-compile.cpp
