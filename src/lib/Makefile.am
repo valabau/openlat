@@ -18,7 +18,7 @@ lib_LTLIBRARIES = libopenlat.la
 libopenlat_la_SOURCES  = htk/lex.cpp htk/yacc.cpp htk-compiler.cpp iofilter.cpp
 #libopenlat_la_LIBADD =  -lfst  -ldl -lz -lbz2 
 
-htk/yacc.cpp htk/yacc.hpp: $(srcdir)/htk/htk.y
+htk/yacc.cpp htk/yacc.hpp htk/location.hh htk/position.hh htk/stack.hh: $(srcdir)/htk/htk.y
 	$(YACC) $(YFLAGS) $(AM_YFLAGS) --output=htk/yacc.cpp --defines=htk/yacc.hpp $(srcdir)/htk/htk.y --report-file=htk/yacc.report 
 
 htk/lex.o: htk/lex.cpp
