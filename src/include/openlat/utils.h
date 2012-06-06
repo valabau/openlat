@@ -149,6 +149,17 @@ void tokenize(const T& str,
               vector<T>& tokens,
               const T& delimiters = T(" "))
 {
+  if (delimiters == T("")) {
+    tokens.reserve(str.size());
+    for (typename T::const_iterator it = str.begin(); it != str.end(); ++it) {
+      T tok;
+      tok.push_back(*it);
+      tokens.push_back(tok);
+    }
+  }
+  else {
+    tokens.clear();
+
     // Skip delimiters at beginning.
     typename T::size_type lastPos = str.find_first_not_of(delimiters, 0);
     // Find first "non-delimiter".
@@ -162,6 +173,7 @@ void tokenize(const T& str,
         // Find next "non-delimiter"
         pos = str.find_first_of(delimiters, lastPos);
     }
+  }
 }
 
 

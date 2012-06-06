@@ -14,11 +14,12 @@
  *   limitations under the License.
  *
  * 
- * lat-compile.cpp
+ * lat-normalize.cpp
  *
- *  Created on: 17/02/2012
+ *  Created on: 15/03/2012
  *      Author: valabau
  */
+
 
 
 #include <cmath>
@@ -26,9 +27,10 @@
 #include <sstream>
 
 #include <fst/fstlib.h>
+#include <fst/mutable-fst.h>
 #include <openlat/compat.h>
 #include <openlat/utils.h>
-#include <openlat/htk-compiler.h>
+#include <openlat/split-symbols.h>
 #include <openlat/iofilter.h>
 
 
@@ -38,43 +40,51 @@ using namespace std;
 using namespace fst;
 using namespace openlat;
 
-extern int htk_debug;
+typedef fst::VectorFst<fst::LogArc> LogVectorFst;
 
 int main(int argc, char *argv[]) {
   const string stdio_str("-");
   const char * input = stdio_str.c_str();
   const char *output = stdio_str.c_str();
-  bool do_standard = false;
+
+  string separator = "_";
+  string *space = 0;
 
   if (argc >= 2 and argv[1][0] == '-' and argv[1][1] == 's') {
-    argc--;
-    argv++;
-    do_standard = true;
+    separator = argv[2];
+    string _space(argv[3]);
+    if (not _space.empty()) space = new string(argv[3]);
+    argc-=3;
+    argv+=3;
   }
+
 
   if (argc >= 2) input = argv[1];
   if (argc >= 3) output = argv[2];
 
-  if (do_standard) {
+  {
     ifilter is(input);
-    MutableFst<StdArc> *fst = ReadHtkStdArc(is, input);
+    MutableFst<LogArc> *fst = MutableFst<LogArc>::Read(is, FstReadOptions(input));
     Verify(*fst);
+
+    fst::SymbolTable * const_syms = new fst::SymbolTable("const syms");
+    const_syms->AddSymbol("<s>");
+    const_syms->AddSymbol("</s>");
+    const_syms->AddSymbol("<space>");
+    const_syms->AddSymbol("<phrase>");
+    const_syms->AddSymbol("<epsilon>");
+    const_syms->AddSymbol("!NULL");
+
+    VectorFst<LogArc> ofst;
+    SplitSymbols(*fst, &ofst, separator, space, const_syms);
+
+    delete const_syms;
 
     FstWriteOptions opts(output);
     ofilter os(output);
-    fst->Write(os, opts);
+    ofst.Write(os, opts);
 
-    delete fst;
-  }
-  else {
-    ifilter is(input);
-    MutableFst<LogArc> *fst = ReadHtkLogArc(is, input);
-    Verify(*fst);
-
-    FstWriteOptions opts(output);
-    ofilter os(output);
-    fst->Write(os, opts);
-
+    if (space) delete space;
     delete fst;
   }
 
