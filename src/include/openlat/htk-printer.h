@@ -63,7 +63,10 @@ void PrintHtk(const fst::Fst<Arc> &fst, std::ostream &out) {
       const Arc &arc = aiter.Value();
       out << "J=" << (j++) << " S=" << s << " E=" << arc.nextstate << " W=";
 
-      if (syms != 0) {
+      if (arc.ilabel == 0) {
+        out << "!NULL";
+      }
+      else if (syms != 0) {
         out << syms->Find(arc.ilabel);
       }
       else {

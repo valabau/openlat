@@ -1,5 +1,5 @@
 AM_CPPFLAGS = $(WARNING_CXXFLAGS) $(COMPILANCE_CXXFLAGS) -I$(top_srcdir)/src/include
-AM_LDFLAGS = -L/usr/lib/fst -lfst -lngram-fst 
+AM_LDFLAGS = -L/usr/lib/fst -lfst -lfstscript #-lngram-fst 
 
 bin_PROGRAMS = lat-compile lat-normalize lat-rmprefix lat-sumsuffixes lat-split-symbols lat-print-htk #interactive-sequence-labeling ngram-compile 
 LDADD = ../lib/libopenlat.la -lfst -ldl $(BOOST_IOSTREAMS_LIB)

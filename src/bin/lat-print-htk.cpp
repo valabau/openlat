@@ -26,6 +26,7 @@
 #include <sstream>
 
 #include <fst/fstlib.h>
+#include <fst/script/fst-class.h>
 #include <openlat/compat.h>
 #include <openlat/utils.h>
 #include <openlat/htk-printer.h>
@@ -33,10 +34,17 @@
 
 
 
-
 using namespace std;
 using namespace fst;
 using namespace openlat;
+
+template<class Arc>
+void execute(const fst::Fst<Arc> &fst, const char *output) {
+  Verify(fst);
+
+  ofilter os(output);
+  PrintHtk(fst, os);
+}
 
 int main(int argc, char *argv[]) {
   const string stdio_str("-");
@@ -46,12 +54,13 @@ int main(int argc, char *argv[]) {
   if (argc >= 2)  input = argv[1];
   if (argc >= 3) output = argv[2];
 
-  ifilter is(input);
-  MutableFst<LogArc> *fst = MutableFst<LogArc>::Read(is, FstReadOptions(input));
-  Verify(*fst);
-
-  ofilter os(output);
-  PrintHtk(*fst, os);
+  script::FstClass *fst = script::FstClass::Read((strncmp(input, "-", 1) == 0)?"":input);
+  if (fst->ArcType() == "standard") {
+    execute(*fst->GetFst<StdArc>(), output);
+  }
+  else if (fst->ArcType() == "log") {
+    execute(*fst->GetFst<LogArc>(), output);
+  }
 
   delete fst;
 
