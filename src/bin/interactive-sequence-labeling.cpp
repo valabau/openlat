@@ -40,6 +40,8 @@ using namespace openlat;
 int main (int argc, char *argv[]) {
   //INIT_TRACE();
 
+  cout.precision(3);
+
   assert_bt(argc >= 3, "Invalid number of parameters");
   ifstream file_in(argv[1]);
   ifstream refs_in(argv[2]);
@@ -55,11 +57,12 @@ int main (int argc, char *argv[]) {
   vector<VectorFst<LogArc> *> fsts;
   vector<vector <VLabel> > refs;
 
+  cerr << "Loading lattices\n";
   while (getline(refs_in, reference)) {
     file_in >> filename;
 
 
-    cout << "Loading " << filename << " ...\n";
+    //cerr << "Loading " << filename << " ...\n";
     VectorFst<LogArc> *fst = VectorFst<LogArc>::Read(filename);
 
 // XXX:   fst->scorer.amscale = amscale;
@@ -73,21 +76,26 @@ int main (int argc, char *argv[]) {
 
     vector<VLabel> ref;
     string_to_syms(reference, fst->OutputSymbols(), ref);
-    cout << "with ref: " << syms_to_string(ref, fst->OutputSymbols()) << " ...\n";
+    //cerr << "with ref: " << syms_to_string(ref, fst->OutputSymbols()) << " ...\n";
 
     fsts.push_back(fst);
     refs.push_back(ref);
   }
 
+  cerr << "Finish loading lattices\n";
+
   srand(time(NULL));
 //  LocalSystem<LogArc, LogQueryFilter, RecomputeGreedy<LogArc, LogQueryFilter> > system(fsts);
-  LocalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter> > system(fsts);
+  LocalSystem<LogArc, LogQueryFilter, RecomputeSequential<LogArc, LogQueryFilter>, sort_pool_by_label> system(fsts);
+//  LocalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter> > system(fsts);
 //  GlobalKaryoGlobal system(fsts);
 //  LocalSystem<LogArc, LogQueryFilter, RecomputeSequential<LogArc, LogQueryFilter> > system(fsts);
 
   Oracle oracle(refs);
 
   oracle.evaluate(&system);
+
+  for (size_t i = 0; i < fsts.size(); i++) delete fsts[i];
   return EXIT_SUCCESS;
 
 }

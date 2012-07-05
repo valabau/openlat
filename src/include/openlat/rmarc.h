@@ -51,7 +51,8 @@ void RmArc(fst::MutableFst<Arc> *fst, const RmArcOptions<Arc, ArcFilter> &opts) 
     }
   }
 
-  fst->DeleteStates(vector<StateId>(1, dead));
+  // fst->DeleteStates(vector<StateId>(1, dead));
+  fst::Connect(fst);
 }
 
 

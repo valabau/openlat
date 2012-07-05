@@ -177,6 +177,20 @@ void tokenize(const T& str,
 }
 
 
+
+/** compute the laps of time in ms between two clocks
+ * @param clock1 first clock
+ * @param clock2 second clock
+ * @return return the lapse of time in ms between clock1 and clock2
+ */
+template <typename T>
+double diffclock(T clock1, T clock2) {
+  double diffticks = static_cast<double>(clock1) - static_cast<double>(clock2);
+  double diffms = (diffticks * 1000) / CLOCKS_PER_SEC;
+  return diffms;
+}
+
+
 }
 
 #endif /* openlat_UTILS_H_ */

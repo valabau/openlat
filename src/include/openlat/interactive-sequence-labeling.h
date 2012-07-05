@@ -34,6 +34,10 @@
 
 namespace openlat {
 
+/** Obtain a set of symbols from the fst
+ * @param[in] fst a fst
+ * @param[out] a set of symbols
+ */
 template<class Arc>
 void GetOutputSymbols(const fst::Fst<Arc> &fst, std::vector<std::set<typename Arc::Label> > *symbols) {
   typedef typename Arc::Label Label;
@@ -100,6 +104,9 @@ void GetOutputSymbols(const fst::Fst<Arc> &fst, std::vector<std::set<typename Ar
 }
 
 
+/**
+ * structure to manage the pool of hypothesis
+ */
 typedef struct _sPoolV {
   VLabel hyp;
   float score; //< score of the hypothesis in the log semiring (the smaller the better)
@@ -110,30 +117,32 @@ typedef struct _sPoolV {
 
 typedef std::tr1::unordered_map<SampleLabel, PoolV> Pool;
 
-}
-
-namespace std {
-  template<> struct less<openlat::Pool::iterator> {
-    size_t operator()(const openlat::Pool::iterator& __x, const openlat::Pool::iterator& __y) const {
-      return __x->second < __y->second;
-    }
-  };
-}
-
-namespace openlat {
+/**
+ * structure function to sort the Pool acording to label
+ */
+struct sort_pool_by_label {
+  size_t operator()(const Pool::const_iterator& __x, const Pool::const_iterator& __y) const {
+    return __x->first.label > __y->first.label;
+  }
+};
 
 /**
- * @param clock1 first clock
- * @param clock2 second clock
- * @return return the lapse of time in ms between clock1 and clock2
+ * structure function to sort the Pool acording to label
  */
-template <typename T>
-double diffclock(T clock1, T clock2) {
-  double diffticks = static_cast<double>(clock1) - static_cast<double>(clock2);
-  double diffms = (diffticks * 1000) / CLOCKS_PER_SEC;
-  return diffms;
-}
+struct sort_pool_by_label_reverse {
+  size_t operator()(const Pool::const_iterator& __x, const Pool::const_iterator& __y) const {
+    return __x->first.label < __y->first.label;
+  }
+};
 
+/**
+ * structure function to sort the Pool
+ */
+struct sort_pool_by_score {
+  size_t operator()(const Pool::const_iterator& __x, const Pool::const_iterator& __y) const {
+    return __x->second < __y->second;
+  }
+};
 
 /** @class ISystem
  *
@@ -146,12 +155,12 @@ public:
   virtual Query askLabel() = 0;
   /** Assign a hypothesis to a label (query), which was erroneously recognized, and return the most likely hypothesis with that constraint */
   virtual void fixLabel(const Query &query, vector<VLabel> &hyp) = 0;
-  /** Recompute score for given query and return the most likely hyp and the scores of the elements */
-  virtual void recomputeScores(const Query &query, vector<VLabel> &hyp, vector<float> &scores) = 0;
-  /** Accept quiven query as correct */
+  /** Accept given query as correct */
   virtual void acceptLabel(const Query &query) = 0;
   /** Update a hypothesis to a label (query) and return the most likely hypothesis with that constraint */
   virtual void update(const Query &query, vector<VLabel> &hyp) = 0;
+  /** Recompute score for given query and return the most likely hyp and the scores of the elements */
+  virtual void recomputeScores(const Query &query, vector<VLabel> &hyp, vector<float> &scores) = 0;
   virtual ~ISystem() {};
 };
 
@@ -165,15 +174,21 @@ public:
   const vector<vector<VLabel> >& refs; /**< correct answers for each sample */
   vector<size_t> n_errors; /**< number of errors for each sample */
   size_t c; /**< number of corrections made */
+  size_t n_labels; /**< total number of labels */
   size_t e_c; /**< number of label errors */
   size_t e_k; /**< number of @e sentence errors */
   clock_t start_time; /**< start time of the evaluation */
-  clock_t end_time; /**< end time of the evaluation */
+  clock_t end_time;   /**< end time of the evaluation */
 
   Oracle(const vector<vector<VLabel> >& _refs):
-          refs(_refs), n_errors(refs.size()), c(0)
+          refs(_refs), n_errors(refs.size()), c(0), n_labels(0),
+          e_c(0), e_k(0), start_time(0), end_time(0)
   {
-    for (size_t i = 0; i < refs.size(); i++) n_errors[i] = refs[i].size();
+    // initially the error is 100%
+    for (size_t i = 0; i < refs.size(); i++) {
+      n_labels += refs[i].size();
+      n_errors[i] = refs[i].size();
+    }
     recomputeErrors();
   }
 
@@ -187,11 +202,17 @@ public:
     }
   }
 
+  float error(int count, int total) { return 100.0*static_cast<float>(count)/static_cast<float>(total); }
+
   /** print error rates and other statistics */
   void printStats(size_t s) {
     recomputeErrors();
     end_time = clock();
-    cout << s << " " << c << " " << e_c << " " << e_k << " " << diffclock(end_time, start_time)/1000 << endl;
+    cout << s;
+    cout << " " << error(c, n_labels)   << " (" << c << ")";
+    cout << " " << error(e_c, n_labels) << " (" << e_c << ")";
+    cout << " " << error(e_k, refs.size()) << " (" << e_k << ")";
+    cout << " " << diffclock(end_time, start_time)/1000 << endl;
   }
 
   /** evaluate an interactive system */
@@ -207,23 +228,23 @@ public:
     }
     printStats(0);
 
-    size_t total_labels = 0; // total labels to be queried
-    for (size_t i = 0; i < refs.size(); i++) total_labels += refs[i].size();
-
     // start interactive labeling until total labels are queried
-    for (size_t s = 0; s < total_labels; s++) {
+    for (size_t s = 0; s < n_labels; s++) {
       // ask the system for the next query
       Query query = system->askLabel();
       // cerr << "query: " << query.label.sample << " " << query.label.label << " " << query.hyp << " is " << refs[query.label.sample][query.label.label] << "\n";
 
       // if the query is wrong
       if (query.hyp != refs[query.label.sample][query.label.label]) {
+        const vector<VLabel> &ref = refs[query.label.sample];
         c++; // increment the number of corrections made
         query.hyp = refs[query.label.sample][query.label.label]; // assign the correct hyp
         vector<VLabel> hyp;
         system->fixLabel(query, hyp); // fix the hypothesis in the system
         // recompute the number of errors for the given sample
-        n_errors[query.label.sample] = edit_distance(refs[query.label.sample], hyp);
+        size_t dist = edit_distance(refs[query.label.sample], hyp);
+        size_t n_err = n_errors[query.label.sample];
+        n_errors[query.label.sample] = dist;
       }
       // if the query is right then accept the query
       else {
@@ -242,12 +263,12 @@ public:
 /** @class System
  *  @brief Base class for interactive systems
  */
-template <class Arc, class Filter>
+template <class Arc, class Filter, typename Recompute>
 class System: public ISystem {
 public:
-  vector<fst::VectorFst<Arc> *> fsts; //< store all fsts samples
-  unordered_map<SampleLabel, PoolV> elems; //< pool of hypotheses
-  vector< vector<bool> > assigned_labels; //< store already assigned labels for each sample
+  std::vector<fst::VectorFst<Arc> *> fsts; //< store all fsts samples
+  std::tr1::unordered_map<SampleLabel, PoolV> elems; //< pool of hypotheses
+  std::vector< std::vector<bool> > assigned_labels; //< store already assigned labels for each sample
 
   System(vector<fst::VectorFst<Arc> *> _fsts): fsts(_fsts) {
     assigned_labels.resize(fsts.size());
@@ -265,7 +286,17 @@ public:
 
   virtual Query askLabel() = 0;
   virtual void fixLabel(const Query &query, vector<VLabel> &hyp) = 0;
-  virtual void recomputeScores(const Query &query, vector<VLabel> &hyp, vector<float> &scores) = 0;
+
+  /** Recompute scores using the Recompute template argument */
+  virtual void recomputeScores(const Query &query, vector<VLabel> &hyp, vector<float> &scores) {
+    fst::VectorFst<Arc> *fst = fsts[query.label.sample];
+    // create a dummy dead state for the mappers to disable an arc
+    typename fst::VectorFst<Arc>::StateId dead_state = fst->AddState();
+    Recompute()(*fst, dead_state,
+        assigned_labels[query.label.sample], hyp, scores);
+    // delete the dummy state
+    fst->DeleteStates(vector<typename fst::VectorFst<Arc>::StateId>(1, dead_state));
+  }
 
   /** accept query as a correct solution */
   virtual void acceptLabel(const Query &query) {
@@ -274,8 +305,11 @@ public:
 
     // retrieve the fst and remove all hypotheses not compatible with the current query
     fst::VectorFst<Arc> * fst = fsts[query.label.sample];
-    Filter filter(query.label.label, query.hyp);
+    size_t n_states = fst->NumStates();
+    Filter filter(query.label.label + 1, query.hyp);
     RmArc<Arc, Filter>(fst, RmArcOptions<Arc, Filter>(filter));
+    size_t n_states_after = fst->NumStates();
+    cerr << "from " << n_states << " to " << n_states_after << " (" << query.label.label + 1 << "," << query.hyp << ")\n";
     assert_bt(fst->NumStates() > 0, "ERROR: empty lattice after accepting label\n");
   }
 
@@ -306,12 +340,12 @@ public:
  *  The local system iterates over the samples making just one query per sample.
  *  In the next iteration it performs another query per sample, and so on.
  */
-template <class Arc, class Filter, typename Recompute>
-class LocalSystem: public System<Arc, Filter> {
-  typedef System<Arc, Filter> Base;
+template <class Arc, class Filter, typename Recompute, typename Less = sort_pool_by_label>
+class LocalSystem: public System<Arc, Filter, Recompute> {
+  typedef System<Arc, Filter, Recompute> Base;
 public:
-  LocalSystem(vector<fst::VectorFst<Arc> *>& _fsts): Base(_fsts), next_sample(0), pool(Base::fsts.size()) {
-    for (Pool::iterator it = Base::elems.begin(); it != Base::elems.end(); ++it) {
+  LocalSystem(std::vector<fst::VectorFst<Arc> *>& _fsts): Base(_fsts), next_sample(0), pool(Base::fsts.size()) {
+    for (Pool::const_iterator it = Base::elems.begin(); it != Base::elems.end(); ++it) {
       pool[it->first.sample].push_back(it);
     }
   }
@@ -325,11 +359,11 @@ public:
     next_sample = (next_sample + 1) % Base::fsts.size();
 
     // pop min element from pool[query.sample]
-    pop_heap(pool[query.label.sample].begin(), pool[query.label.sample].end(), std::less<Pool::iterator>());
+    pop_heap(pool[query.label.sample].begin(), pool[query.label.sample].end(), Less());
 
     // return query and remove it from the queue
-    query.label.label = pool[query.label.sample].back()->first.label;
-    query.hyp         = pool[query.label.sample].back()->second.hyp;
+    query.label.label = (pool[query.label.sample].back())->first.label;
+    query.hyp         = (pool[query.label.sample].back())->second.hyp;
     pool[query.label.sample].pop_back();
     return query;
   }
@@ -337,37 +371,27 @@ public:
   /** Assign query and update re-sort the queue jut for the current sample */
   virtual void fixLabel(const Query &query, vector<VLabel> &hyp) {
     Base::update(query, hyp);
-    make_heap(pool[query.label.sample].begin(), pool[query.label.sample].end(), std::less<Pool::iterator>());
-  }
-
-  /** Recompute scores using the Recompute template argument */
-  virtual void recomputeScores(const Query &query, vector<VLabel> &hyp, vector<float> &scores) {
-    fst::VectorFst<Arc> *fst = Base::fsts[query.label.sample];
-    // create a dummy dead state for the mappers to disable an arc
-    typename fst::VectorFst<Arc>::StateId dead_state = fst->AddState();
-    Recompute()(*fst, dead_state,
-        Base::assigned_labels[query.label.sample], hyp, scores);
-    // delete the dummy state
-    fst->DeleteStates(vector<typename fst::VectorFst<Arc>::StateId>(1, dead_state));
+    std::vector<Pool::const_iterator> &ps = pool[query.label.sample];
+    make_heap(ps.begin(), ps.end(), Less());
   }
 
   virtual ~LocalSystem() {};
 
 protected:
   size_t next_sample; //< which is the next sample to process
-  vector< vector<Pool::iterator>  > pool; //< a pool of queries for each sample
+  vector< vector<Pool::const_iterator>  > pool; //< a pool of queries for each sample
 };
 
-/** @class LocalSystem
+/** @class GlobalSystem
  *  @brief A global system selects the query based on the whole set of samples
  *
  */
-template <class Arc, class Filter, typename Recompute>
-class GlobalSystem: public System<Arc, Filter> {
+template <class Arc, class Filter, typename Recompute, typename Less = sort_pool_by_score>
+class GlobalSystem: public System<Arc, Filter, Recompute> {
 public:
-  typedef System<Arc, Filter> Base;
+  typedef System<Arc, Filter, Recompute> Base;
   GlobalSystem(std::vector<fst::VectorFst<Arc> *>& _fsts): Base(_fsts) {
-    for (Pool::iterator it = Base::elems.begin(); it != Base::elems.end(); ++it) {
+    for (Pool::const_iterator it = Base::elems.begin(); it != Base::elems.end(); ++it) {
       pool.push_back(it);
     }
   }
@@ -376,11 +400,11 @@ public:
   virtual Query askLabel() {
     Query query;
     // pop min element from the global pool
-    pop_heap(pool.begin(), pool.end(), std::less<Pool::iterator>());
+    pop_heap(pool.begin(), pool.end(), std::less<Pool::iterator *>());
     // return query
-    query.label.sample = pool.back()->first.sample;
-    query.label.label  = pool.back()->first.label;
-    query.hyp          = pool.back()->second.hyp;
+    query.label.sample = (pool.back())->first.sample;
+    query.label.label  = (pool.back())->first.label;
+    query.hyp          = (pool.back())->second.hyp;
     pool.pop_back();
     return query;
   }
@@ -389,23 +413,12 @@ public:
   /** Assign query and update re-sort the queue jut for the current sample */
   virtual void fixLabel(const Query &query, vector<VLabel> &hyp) {
     Base::update(query, hyp);
-    make_heap(pool.begin(), pool.end(), std::less<Pool::iterator>());
-  }
-
-  /** Recompute scores using the Recompute template argument */
-  virtual void recomputeScores(const Query &query, vector<VLabel> &hyp, vector<float> &scores) {
-    fst::VectorFst<Arc> *fst = Base::fsts[query.label.sample];
-    // create a dummy dead state for the mappers to disable an arc
-    typename fst::VectorFst<Arc>::StateId dead_state = fst->AddState();
-    Recompute()(*fst, dead_state,
-        Base::assigned_labels[query.label.sample], hyp, scores);
-    // delete the dummy state
-    fst->DeleteStates(vector<typename fst::VectorFst<Arc>::StateId>(1, dead_state));
+    make_heap(pool.begin(), pool.end(), Less());
   }
   virtual ~GlobalSystem() {};
 
 protected:
-  vector<Pool::iterator> pool; //< a global pool of queries
+  vector<Pool::const_iterator> pool; //< a global pool of queries
 };
 
 template <class Arc, class Filter>
@@ -430,7 +443,7 @@ struct RecomputeSequential {
   void operator()(const fst::VectorFst<Arc> &fst, typename fst::VectorFst<Arc>::StateId, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
     ShortestPath(fst, hyp, scores);
     for (size_t l = 0; l < hyp.size(); l++) {
-      scores[l] = -l;
+      scores[l] = -scores[l];
     }
   }
 };

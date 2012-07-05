@@ -39,27 +39,50 @@ using namespace fst;
 using namespace openlat;
 
 template<class Arc>
-void execute(const fst::Fst<Arc> &fst, const char *output) {
+void execute(const fst::Fst<Arc> &fst, const char *output, const char *start_symbol, const char *end_symbol) {
   Verify(fst);
 
   ofilter os(output);
-  PrintHtk(fst, os);
+
+  if (start_symbol or end_symbol) {
+    MutableFst<Arc> *mfst = new VectorFst<Arc>(fst);
+
+//    AddStartAndEndSymbols(mfst, start_symbol, end_symbol);
+    PrintHtk(*mfst, os);
+
+    delete mfst;
+  }
+  else {
+    PrintHtk(fst, os);
+  }
 }
 
 int main(int argc, char *argv[]) {
   const string stdio_str("-");
   const char * input = stdio_str.c_str();
   const char *output = stdio_str.c_str();
+  char *start_symbol = 0;
+  char *end_symbol = 0;
+
+  if (argc >= 4 and argv[1][0] == '-' and argv[1][1] == 's') {
+    start_symbol = argv[2];
+    end_symbol   = argv[3];
+    argc -= 3;
+    argv += 3;
+  }
 
   if (argc >= 2)  input = argv[1];
   if (argc >= 3) output = argv[2];
 
   script::FstClass *fst = script::FstClass::Read((strncmp(input, "-", 1) == 0)?"":input);
+
+  if (not fst) return EXIT_FAILURE;
+
   if (fst->ArcType() == "standard") {
-    execute(*fst->GetFst<StdArc>(), output);
+    execute(*fst->GetFst<StdArc>(), output, start_symbol, end_symbol);
   }
   else if (fst->ArcType() == "log") {
-    execute(*fst->GetFst<LogArc>(), output);
+    execute(*fst->GetFst<LogArc>(), output, start_symbol, end_symbol);
   }
 
   delete fst;
