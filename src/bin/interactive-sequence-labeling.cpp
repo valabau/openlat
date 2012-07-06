@@ -65,7 +65,7 @@ int main (int argc, char *argv[]) {
     //cerr << "Loading " << filename << " ...\n";
     VectorFst<LogArc> *fst = VectorFst<LogArc>::Read(filename);
 
-// XXX:   fst->scorer.amscale = amscale;
+    if (amscale != 1.0) ArcMap(fst, TimesMapper<LogArc>(amscale));
 
 // XXX:   if (pruning_threshold != 0) {
 //      VectorFst<Arc> * fst_pruned = new VectorFst<Arc>();
@@ -86,14 +86,19 @@ int main (int argc, char *argv[]) {
 
   srand(time(NULL));
 //  LocalSystem<LogArc, LogQueryFilter, RecomputeGreedy<LogArc, LogQueryFilter> > system(fsts);
-  LocalSystem<LogArc, LogQueryFilter, RecomputeSequential<LogArc, LogQueryFilter>, sort_pool_by_label> system(fsts);
-//  LocalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter> > system(fsts);
-//  GlobalKaryoGlobal system(fsts);
+//  LocalSystem<LogArc, LogQueryFilter, RecomputeSequential<LogArc, LogQueryFilter>, sort_pool_by_label> system(fsts);
+    LocalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter>, sort_pool_by_label> system(fsts);
+//  LocalSystem<LogArc, LogQueryFilter, RecomputeSequential<LogArc, LogQueryFilter>, sort_pool_by_label_reverse> system(fsts);
+//  LocalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter>, sort_pool_by_label_reverse> system(fsts);
 //  LocalSystem<LogArc, LogQueryFilter, RecomputeSequential<LogArc, LogQueryFilter> > system(fsts);
+//  LocalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter> > system(fsts);
+//  GlobalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter> > system(fsts);
 
   Oracle oracle(refs);
 
   oracle.evaluate(&system);
+
+  cout << oracle.c << "\n";
 
   for (size_t i = 0; i < fsts.size(); i++) delete fsts[i];
   return EXIT_SUCCESS;

@@ -140,7 +140,7 @@ struct sort_pool_by_label_reverse {
  */
 struct sort_pool_by_score {
   size_t operator()(const Pool::const_iterator& __x, const Pool::const_iterator& __y) const {
-    return __x->second < __y->second;
+    return __x->second > __y->second;
   }
 };
 
@@ -205,14 +205,16 @@ public:
   float error(int count, int total) { return 100.0*static_cast<float>(count)/static_cast<float>(total); }
 
   /** print error rates and other statistics */
-  void printStats(size_t s) {
+  void printStats(size_t s, const Query& query) {
     recomputeErrors();
     end_time = clock();
-    cout << s;
-    cout << " " << error(c, n_labels)   << " (" << c << ")";
-    cout << " " << error(e_c, n_labels) << " (" << e_c << ")";
-    cout << " " << error(e_k, refs.size()) << " (" << e_k << ")";
-    cout << " " << diffclock(end_time, start_time)/1000 << endl;
+    std::cerr << ((s-1) / refs.size());
+    std::cerr << " " << error(s, n_labels)      << " (" << s   << ")";
+    std::cerr << " Q(s_" << query.label.sample << "[" << query.label.label << "]==" << query.hyp << ")";
+    std::cerr << " " << error(c, n_labels)      << " (" << c   << ")";
+    std::cerr << " " << error(e_c, n_labels)    << " (" << e_c << ")";
+    std::cerr << " " << error(e_k, refs.size()) << " (" << e_k << ")";
+    std::cerr << " " << diffclock(end_time, start_time)/1000 << endl;
   }
 
   /** evaluate an interactive system */
@@ -226,7 +228,7 @@ public:
       system->fixLabel(query, hyp);
       n_errors[query.label.sample] = edit_distance(refs[query.label.sample], hyp);
     }
-    printStats(0);
+    printStats(0, Query());
 
     // start interactive labeling until total labels are queried
     for (size_t s = 0; s < n_labels; s++) {
@@ -253,7 +255,7 @@ public:
         system->fixLabel(query, hyp); // this is necessary to acknowledge the system
       }
       // print the updated stats
-      printStats(s + 1);
+      printStats(s + 1, query);
     }
   }
 };
@@ -309,7 +311,7 @@ public:
     Filter filter(query.label.label + 1, query.hyp);
     RmArc<Arc, Filter>(fst, RmArcOptions<Arc, Filter>(filter));
     size_t n_states_after = fst->NumStates();
-    cerr << "from " << n_states << " to " << n_states_after << " (" << query.label.label + 1 << "," << query.hyp << ")\n";
+//    cerr << "from " << n_states << " to " << n_states_after << " (" << query.label.label + 1 << "," << query.hyp << ")\n";
     assert_bt(fst->NumStates() > 0, "ERROR: empty lattice after accepting label\n");
   }
 
@@ -340,7 +342,7 @@ public:
  *  The local system iterates over the samples making just one query per sample.
  *  In the next iteration it performs another query per sample, and so on.
  */
-template <class Arc, class Filter, typename Recompute, typename Less = sort_pool_by_label>
+template <class Arc, class Filter, typename Recompute, typename Less = sort_pool_by_score>
 class LocalSystem: public System<Arc, Filter, Recompute> {
   typedef System<Arc, Filter, Recompute> Base;
 public:
@@ -400,7 +402,7 @@ public:
   virtual Query askLabel() {
     Query query;
     // pop min element from the global pool
-    pop_heap(pool.begin(), pool.end(), std::less<Pool::iterator *>());
+    pop_heap(pool.begin(), pool.end(), Less());
     // return query
     query.label.sample = (pool.back())->first.sample;
     query.label.label  = (pool.back())->first.label;
@@ -499,9 +501,9 @@ struct RecomputeExpectation {
           }
         }
 
-  //      cout << "max score l" << label << ": " << scores[label] << " ";
-  //      cout << sentence_to_string(best_hyp);
-  //      cout << "\n";
+  //      std::cerr << "max score l" << label << ": " << scores[label] << " ";
+  //      std::cerr << sentence_to_string(best_hyp);
+  //      std::cerr << "\n";
 
         // if the score for this label is better than for the rest, update
         if (scores[label] < max_score) {
@@ -511,12 +513,12 @@ struct RecomputeExpectation {
       } // if not assigned label
     }
 
-  //  cout << "max: " << max_score << "\n";
-  //  cout << "scores: ";
+  //  std::cerr << "max: " << max_score << "\n";
+  //  std::cerr << "scores: ";
   //  for (size_t s = 0; s < scores.size(); s++) {
-  //    cout << " " << scores[s];
+  //    std::cerr << " " << scores[s];
   //  }
-  //  cout << "\n";
+  //  std::cerr << "\n";
 
     vector<float> tscores;
     ShortestPath(fst, hyp, tscores);
