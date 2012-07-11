@@ -27,6 +27,37 @@
 
 namespace openlat {
 
+// Mapper to (right) multiply a constant to all weights.
+template <class A>
+struct PowerMapper {
+  typedef A FromArc;
+  typedef A ToArc;
+  typedef typename A::Weight Weight;
+
+  explicit PowerMapper(float w) : weight_(w) {}
+
+  A operator()(const A &arc) const {
+    if (arc.weight == Weight::Zero())
+      return arc;
+    Weight w = Weight(arc.weight.Value() * weight_);
+    return A(arc.ilabel, arc.olabel, w, arc.nextstate);
+  }
+
+  fst::MapFinalAction FinalAction() const { return fst::MAP_NO_SUPERFINAL; }
+
+  fst::MapSymbolsAction InputSymbolsAction() const { return fst::MAP_COPY_SYMBOLS; }
+
+  fst::MapSymbolsAction OutputSymbolsAction() const { return fst::MAP_COPY_SYMBOLS;}
+
+  uint64 Properties(uint64 props) const {
+    return props & fst::kWeightInvariantProperties;
+  }
+
+ private:
+  float weight_;
+};
+
+
 template<class Arc>
 bool VerifyProbabilistic(const fst::Fst<Arc> &fst, float delta = fst::kDelta) {
   typedef typename Arc::StateId StateId;
@@ -44,7 +75,7 @@ bool VerifyProbabilistic(const fst::Fst<Arc> &fst, float delta = fst::kDelta) {
     sum = fst::Plus(sum, fst.Final(s));
 
     if (delta != 0) {
-      if (sum.Quantize(delta) != Weight::One().Quantize(delta)) return false;
+      if (not fst::ApproxEqual(sum, Weight::One(), delta)) return false;
     }
     else {
       if (sum != Weight::One()) return false;
@@ -79,6 +110,32 @@ void Normalize(fst::MutableFst<Arc> *fst) {
   }
 
 }
+
+template<class Arc>
+void DeterminizeAndNormalize(const fst::Fst<Arc> &ifst,
+                             fst::MutableFst<Arc> *ofst,
+                             const fst::DeterminizeOptions<Arc> &opts
+                             = fst::DeterminizeOptions<Arc>())
+{
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+
+  fst::VectorFst<Arc> fst(ifst);
+
+  if (fst.Properties(fst::kEpsilons, true) & fst::kEpsilons) {
+    fst::RmEpsilon(&fst);
+  }
+
+  fst::EncodeMapper<Arc> encode_mapper(fst::kEncodeLabels, fst::ENCODE);
+  fst::Encode(&fst, &encode_mapper);
+
+  fst::Determinize(fst, ofst, opts);
+  fst::Minimize(ofst);
+
+  fst::Decode(ofst, encode_mapper);
+  Normalize(ofst);
+}
+
 
 template <class W>
 inline float Entropy(const W &w, const W &fwd) {

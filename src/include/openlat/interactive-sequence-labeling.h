@@ -31,6 +31,7 @@
 #include <openlat/rmarc.h>
 #include <openlat/verify.h>
 #include <openlat/query.h>
+#include <openlat/constrain.h>
 
 namespace openlat {
 
@@ -39,7 +40,7 @@ namespace openlat {
  * @param[out] a set of symbols
  */
 template<class Arc>
-void GetOutputSymbols(const fst::Fst<Arc> &fst, std::vector<std::set<typename Arc::Label> > *symbols) {
+void GetOutputSymbolsOld(const fst::Fst<Arc> &fst, std::vector<std::set<typename Arc::Label> > *symbols) {
   typedef typename Arc::Label Label;
   typedef typename Arc::Weight Weight;
   typedef typename Arc::StateId StateId;
@@ -51,6 +52,8 @@ void GetOutputSymbols(const fst::Fst<Arc> &fst, std::vector<std::set<typename Ar
   if (not fst.Properties(fst::kAcyclic, true)) {
     LOG(FATAL) << "VerifySequenceLabeling: the fst must be acyclic to verify sequence labeling\n";
   }
+
+  symbols->clear();
 
   // Count states
   StateId ns = 0;
@@ -80,12 +83,14 @@ void GetOutputSymbols(const fst::Fst<Arc> &fst, std::vector<std::set<typename Ar
       {
         const Arc &arc = aiter.Value();
 
-        (*symbols)[this_length].insert(arc.olabel);
+        if (arc.weight != Weight::Zero()) {
+          (*symbols)[this_length].insert(arc.olabel);
 
-        if (state_length[arc.nextstate] == static_cast<size_t>(-1)) state_length[arc.nextstate] = this_length + 1;
-        else if (state_length[arc.nextstate] != this_length + 1) {
-          LOG(FATAL) << "VerifySequenceLabeling: Fst state " << state_length[arc.nextstate]
-                     << " length from " << s << " is different from a previous state";
+          if (state_length[arc.nextstate] == static_cast<size_t>(-1)) state_length[arc.nextstate] = this_length + 1;
+          else if (state_length[arc.nextstate] != this_length + 1) {
+            LOG(FATAL) << "VerifySequenceLabeling: Fst state " << state_length[arc.nextstate]
+                       << " length from " << s << " is different from a previous state";
+          }
         }
 
         ++na;
@@ -93,10 +98,40 @@ void GetOutputSymbols(const fst::Fst<Arc> &fst, std::vector<std::set<typename Ar
       if (!fst.Final(s).Member()) {
         LOG(FATAL) << "VerifySequenceLabeling: Fst final weight of state " << s << " is invalid";
       }
-      if (fst.Final(s).Value() < Weight::Zero().Value()) {
+      if (fst.Final(s) != Weight::Zero()) {
         if (final_length == static_cast<size_t>(-1)) final_length = this_length;
         else if (this_length != final_length) {
           LOG(FATAL) << "VerifySequenceLabeling: Fst state " << s << " length is different from a previous final state length";
+        }
+      }
+    }
+  }
+}
+
+template<class Arc>
+void GetOutputSymbols(const fst::Fst<Arc> &fst, std::vector<std::set<typename Arc::Label> > *symbols) {
+  typedef typename Arc::Label Label;
+  typedef typename Arc::Weight Weight;
+  typedef typename Arc::StateId StateId;
+
+  symbols->clear();
+
+  for (fst::StateIterator< fst::Fst<Arc> > siter(fst);
+       !siter.Done();
+       siter.Next())
+  {
+    for (fst::ArcIterator< fst::Fst<Arc> > aiter(fst, siter.Value());
+         !aiter.Done();
+         aiter.Next())
+    {
+      const Arc &arc = aiter.Value();
+
+      if (arc.ilabel != fst::kNoLabel and arc.ilabel > 0) {
+
+        if (arc.weight != Weight::Zero()) {
+          size_t label = arc.ilabel - 1;
+          if ((*symbols).size() <= label) (*symbols).resize(label + 1);
+          (*symbols)[label].insert(arc.olabel);
         }
       }
     }
@@ -171,8 +206,10 @@ public:
  */
 class Oracle {
 public:
-  const vector<vector<VLabel> >& refs; /**< correct answers for each sample */
-  vector<size_t> n_errors; /**< number of errors for each sample */
+  const std::vector<std::vector<VLabel> >& refs; /**< correct answers for each sample */
+  const fst::SymbolTable *isymbols; /**< input symbol table */
+  const fst::SymbolTable *osymbols; /**< output symbol table */
+  std::vector<size_t> n_errors; /**< number of errors for each sample */
   size_t c; /**< number of corrections made */
   size_t n_labels; /**< total number of labels */
   size_t e_c; /**< number of label errors */
@@ -180,8 +217,11 @@ public:
   clock_t start_time; /**< start time of the evaluation */
   clock_t end_time;   /**< end time of the evaluation */
 
-  Oracle(const vector<vector<VLabel> >& _refs):
-          refs(_refs), n_errors(refs.size()), c(0), n_labels(0),
+  Oracle(const std::vector<std::vector<VLabel> >& _refs,
+         const fst::SymbolTable *_isymbols,
+         const fst::SymbolTable *_osymbols):
+          refs(_refs), isymbols(_isymbols), osymbols(_osymbols),
+          n_errors(refs.size()), c(0), n_labels(0),
           e_c(0), e_k(0), start_time(0), end_time(0)
   {
     // initially the error is 100%
@@ -206,15 +246,35 @@ public:
 
   /** print error rates and other statistics */
   void printStats(size_t s, const Query& query) {
+    int pos = (s == 0)?-1:((s-1) / refs.size());
+    int ls = (query.label.sample == size_t(-1))?-1:query.label.sample;
+
     recomputeErrors();
     end_time = clock();
-    std::cerr << ((s-1) / refs.size());
+    std::cerr << pos;
     std::cerr << " " << error(s, n_labels)      << " (" << s   << ")";
-    std::cerr << " Q(s_" << query.label.sample << "[" << query.label.label << "]==" << query.hyp << ")";
+    std::cerr << " Q(s_" << ls << "[";
+    if (isymbols == 0)  std::cerr << query.label.label ;
+    else std::cerr << isymbols->Find(query.label.label+1);
+    std::cerr << "]==";
+    if (osymbols == 0)  std::cerr << query.hyp ;
+    else std::cerr << osymbols->Find(query.hyp);
+    std::cerr <<  ")";
     std::cerr << " " << error(c, n_labels)      << " (" << c   << ")";
     std::cerr << " " << error(e_c, n_labels)    << " (" << e_c << ")";
     std::cerr << " " << error(e_k, refs.size()) << " (" << e_k << ")";
-    std::cerr << " " << diffclock(end_time, start_time)/1000 << endl;
+    std::cerr << " " << diffclock(end_time, start_time)/1000 << std::endl;
+
+    std::map<size_t, size_t> histogram;
+    for (size_t i = 0; i < n_errors.size(); i++) {
+      histogram[n_errors[i]]++;
+    }
+    std::cerr << "{";
+    for (std::map<size_t, size_t>::const_iterator it = histogram.begin(); it != histogram.end(); ++it) {
+      std::cerr << " " << it->first << ":" << it->second << ",";
+    }
+    std::cerr << "}" << std::endl;
+
   }
 
   /** evaluate an interactive system */
@@ -227,6 +287,7 @@ public:
       vector<VLabel> hyp;
       system->fixLabel(query, hyp);
       n_errors[query.label.sample] = edit_distance(refs[query.label.sample], hyp);
+//      if (n_errors[query.label.sample] > 0) cout << "filt " << query.label.sample << " " << n_errors[query.label.sample] << "\n";
     }
     printStats(0, Query());
 
@@ -238,14 +299,14 @@ public:
 
       // if the query is wrong
       if (query.hyp != refs[query.label.sample][query.label.label]) {
-        const vector<VLabel> &ref = refs[query.label.sample];
+//        const vector<VLabel> &ref = refs[query.label.sample];
         c++; // increment the number of corrections made
         query.hyp = refs[query.label.sample][query.label.label]; // assign the correct hyp
         vector<VLabel> hyp;
         system->fixLabel(query, hyp); // fix the hypothesis in the system
         // recompute the number of errors for the given sample
         size_t dist = edit_distance(refs[query.label.sample], hyp);
-        size_t n_err = n_errors[query.label.sample];
+//        size_t n_err = n_errors[query.label.sample];
         n_errors[query.label.sample] = dist;
       }
       // if the query is right then accept the query
@@ -268,11 +329,12 @@ public:
 template <class Arc, class Filter, typename Recompute>
 class System: public ISystem {
 public:
-  std::vector<fst::VectorFst<Arc> *> fsts; //< store all fsts samples
+  std::vector<const fst::VectorFst<Arc> *> fsts; //< store all fsts samples
+  std::vector<Filter> constraints; //< store all fsts constraints
   std::tr1::unordered_map<SampleLabel, PoolV> elems; //< pool of hypotheses
   std::vector< std::vector<bool> > assigned_labels; //< store already assigned labels for each sample
 
-  System(vector<fst::VectorFst<Arc> *> _fsts): fsts(_fsts) {
+  System(const std::vector<const fst::VectorFst<Arc> *> &_fsts): fsts(_fsts), constraints(fsts.size()) {
     assigned_labels.resize(fsts.size());
     for (size_t s = 0; s < fsts.size(); s++) {
       // obtain the number of labels for this sample
@@ -291,13 +353,7 @@ public:
 
   /** Recompute scores using the Recompute template argument */
   virtual void recomputeScores(const Query &query, vector<VLabel> &hyp, vector<float> &scores) {
-    fst::VectorFst<Arc> *fst = fsts[query.label.sample];
-    // create a dummy dead state for the mappers to disable an arc
-    typename fst::VectorFst<Arc>::StateId dead_state = fst->AddState();
-    Recompute()(*fst, dead_state,
-        assigned_labels[query.label.sample], hyp, scores);
-    // delete the dummy state
-    fst->DeleteStates(vector<typename fst::VectorFst<Arc>::StateId>(1, dead_state));
+    Recompute()(*fsts[query.label.sample], constraints[query.label.sample], assigned_labels[query.label.sample], hyp, scores);
   }
 
   /** accept query as a correct solution */
@@ -306,13 +362,7 @@ public:
     assigned_labels[query.label.sample][query.label.label] = true;
 
     // retrieve the fst and remove all hypotheses not compatible with the current query
-    fst::VectorFst<Arc> * fst = fsts[query.label.sample];
-    size_t n_states = fst->NumStates();
-    Filter filter(query.label.label + 1, query.hyp);
-    RmArc<Arc, Filter>(fst, RmArcOptions<Arc, Filter>(filter));
-    size_t n_states_after = fst->NumStates();
-//    cerr << "from " << n_states << " to " << n_states_after << " (" << query.label.label + 1 << "," << query.hyp << ")\n";
-    assert_bt(fst->NumStates() > 0, "ERROR: empty lattice after accepting label\n");
+    constraints[query.label.sample].setMatch(query.label.label, query.hyp);
   }
 
   /** update the system with the query and return the updated hypothesis */
@@ -346,7 +396,7 @@ template <class Arc, class Filter, typename Recompute, typename Less = sort_pool
 class LocalSystem: public System<Arc, Filter, Recompute> {
   typedef System<Arc, Filter, Recompute> Base;
 public:
-  LocalSystem(std::vector<fst::VectorFst<Arc> *>& _fsts): Base(_fsts), next_sample(0), pool(Base::fsts.size()) {
+  LocalSystem(std::vector<const fst::VectorFst<Arc> *>& _fsts): Base(_fsts), next_sample(0), pool(Base::fsts.size()) {
     for (Pool::const_iterator it = Base::elems.begin(); it != Base::elems.end(); ++it) {
       pool[it->first.sample].push_back(it);
     }
@@ -392,7 +442,7 @@ template <class Arc, class Filter, typename Recompute, typename Less = sort_pool
 class GlobalSystem: public System<Arc, Filter, Recompute> {
 public:
   typedef System<Arc, Filter, Recompute> Base;
-  GlobalSystem(std::vector<fst::VectorFst<Arc> *>& _fsts): Base(_fsts) {
+  GlobalSystem(std::vector<const fst::VectorFst<Arc> *>& _fsts): Base(_fsts) {
     for (Pool::const_iterator it = Base::elems.begin(); it != Base::elems.end(); ++it) {
       pool.push_back(it);
     }
@@ -425,41 +475,118 @@ protected:
 
 template <class Arc, class Filter>
 struct RecomputeRandom {
-  void operator()(const fst::VectorFst<Arc> &fst, typename fst::VectorFst<Arc>::StateId, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
-    ShortestPath(fst, hyp, scores);
+  void operator()(const fst::VectorFst<Arc> &fst, const Filter &filter, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
+    typedef ArcFilterMapper<Arc, Filter> Mapper;
+    Mapper mapper(filter);
+    fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
+
+    ShortestPath(_fst, hyp, scores);
     for (size_t l = 0; l < scores.size(); l++) {
-      scores[l] = static_cast<float>(rand())/static_cast<float>(RAND_MAX);
+      scores[l] = -static_cast<float>(rand())/static_cast<float>(RAND_MAX);
     }
   }
 };
 
 template <class Arc, class Filter>
 struct RecomputeGreedy {
-  void operator()(const fst::VectorFst<Arc> &fst, typename fst::VectorFst<Arc>::StateId, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
-    ShortestPath(fst, hyp, scores);
+  void operator()(const fst::VectorFst<Arc> &fst, const Filter &filter, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
+    typedef ArcFilterMapper<Arc, Filter> Mapper;
+    Mapper mapper(filter);
+    fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
+
+    ShortestPath(_fst, hyp, scores);
   }
 };
 
 template <class Arc, class Filter>
 struct RecomputeSequential {
-  void operator()(const fst::VectorFst<Arc> &fst, typename fst::VectorFst<Arc>::StateId, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
-    ShortestPath(fst, hyp, scores);
+  void operator()(const fst::VectorFst<Arc> &fst, const Filter &filter, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
+    typedef ArcFilterMapper<Arc, Filter> Mapper;
+    Mapper mapper(filter);
+    fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
+
+    ShortestPath(_fst, hyp, scores);
     for (size_t l = 0; l < hyp.size(); l++) {
       scores[l] = -scores[l];
     }
   }
 };
 
+
+template <class Arc>
+typename Arc::Weight FstMass(const fst::Fst<Arc> &fst) {
+  std::vector<typename Arc::Weight> distance;
+  fst::ShortestDistance(fst, &distance, true);
+  return distance[fst.Start()];
+}
+
+template <class Arc, class Filter>
+struct RecomputeSequentialExpectation {
+  void operator()(const fst::VectorFst<Arc> &fst, const Filter &filter, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
+    typedef ArcFilterMapper<Arc, Filter> Mapper;
+    typedef typename Arc::Weight Weight;
+    typedef typename Arc::Label Label;
+    typedef typename Arc::StateId StateId;
+
+    fst::VectorFst<Arc> nfst;
+    {
+//      Filter current_constraints(filter);
+//      Mapper mapper(current_constraints);
+//      fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
+
+      DeterminizeAndNormalize(fst, &nfst);
+    }
+
+    // reset scores and hyp
+    scores.clear();
+    scores.resize(assigned_labels.size(), -Arc::Weight::Zero().Value());
+    hyp.resize(assigned_labels.size());
+
+    StateId current_state = nfst.Start();
+    for (size_t label = 0; label < assigned_labels.size(); label++) {
+      Weight max_weight = Weight::Zero();
+
+      for (fst::ArcIterator < fst::Fst<Arc> > aiter(nfst, current_state); !aiter.Done(); aiter.Next()) {
+        const Arc &arc = aiter.Value();
+        Label assigned = filter.getMatch(label);
+        if (assigned_labels[label]) {
+          assert_bt(assigned != fst::kNoLabel, "Unexpected unassigned label");
+          if (arc.olabel == assigned) {
+            max_weight = arc.weight;
+            scores[label] = -arc.weight.Value();
+            hyp[label] = arc.olabel;
+            current_state = arc.nextstate;
+          }
+        }
+        else if (arc.weight != Weight::Zero()) {
+//          std::string member_str = fst.OutputSymbols()->Find(arc.olabel);
+//          std::string label_str = fst.InputSymbols()->Find(arc.ilabel);
+
+          if (arc.weight.Value() <= max_weight.Value()) {
+            max_weight = arc.weight;
+            scores[label] = -arc.weight.Value();
+            hyp[label] = arc.olabel;
+            current_state = arc.nextstate;
+          }
+        }
+      }
+    } // if not assigned label
+
+//    std::cerr << "output: " << syms_to_string(hyp, fst.OutputSymbols()) << std::endl;
+  }
+};
+
+
 template <class Arc, class Filter>
 struct RecomputeExpectation {
-  void operator()(const fst::VectorFst<Arc> &fst, typename fst::VectorFst<Arc>::StateId dead_state, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
+  void operator()(const fst::VectorFst<Arc> &fst, const Filter &filter, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
     typedef FilterMapper<Arc, Filter> Mapper;
 
     // reset scores and hyp
     scores.clear();
-    scores.resize(assigned_labels.size(), Arc::Weight::Zero().Value());
+    scores.resize(assigned_labels.size(), -Arc::Weight::Zero().Value());
     hyp.resize(assigned_labels.size());
-    float max_score = Arc::Weight::Zero().Value();
+    float max_score = -Arc::Weight::Zero().Value();
 
     // obtain the available members for each label
     std::vector< std::set<typename Arc::Label> > members;
@@ -480,51 +607,31 @@ struct RecomputeExpectation {
 
           // build a fst where (label, member) is selected
           // and some arcs are disabled according to mapper
-          Filter filter(label, member);
-          Mapper mapper(filter, dead_state);
-          fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
+//          Filter filter(label, member);
+//          Mapper mapper(filter, dead_state);
+//          fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
 
-          // obtain the shortest path with the restriction (label, member)
-          vector<VLabel> lhyp;
-          vector<float> lscores;
-          float score = ShortestPath(_fst, lhyp, lscores);
-
-          // cerr << "score l" << label << " i" << member << ": " << score << " ";
-          // cerr << syms_to_string(lhyp, fst.OutputSymbols());
-          // cerr << "\n";
+//          float score = -FstMass(_fst);
 
           // accumulate the score for this label
-          scores[label] = -add_log(-scores[label], -score);
-          if (score < max_member_score) {
-            max_member_score = score;
-            copy(lhyp.begin(), lhyp.end(), best_hyp.begin());
-          }
+//          scores[label] = add_log(scores[label], score);
+//          if (score > max_member_score) {
+//            max_member_score = score;
+//            copy(lhyp.begin(), lhyp.end(), best_hyp.begin());
+//          }
         }
 
-  //      std::cerr << "max score l" << label << ": " << scores[label] << " ";
-  //      std::cerr << sentence_to_string(best_hyp);
-  //      std::cerr << "\n";
 
         // if the score for this label is better than for the rest, update
-        if (scores[label] < max_score) {
+        if (scores[label] > max_score) {
           max_score = scores[label];
           copy(best_hyp.begin(), best_hyp.end(), hyp.begin());
         }
       } // if not assigned label
     }
 
-  //  std::cerr << "max: " << max_score << "\n";
-  //  std::cerr << "scores: ";
-  //  for (size_t s = 0; s < scores.size(); s++) {
-  //    std::cerr << " " << scores[s];
-  //  }
-  //  std::cerr << "\n";
-
-    vector<float> tscores;
-    ShortestPath(fst, hyp, tscores);
   }
 };
-
 
 }
 

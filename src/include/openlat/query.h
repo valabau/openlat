@@ -41,7 +41,7 @@ typedef struct _sSampleLabel{
 typedef struct _sQuery {
   SampleLabel label;
   VLabel hyp;
-  _sQuery(size_t _sample = 0, VLabel _label = 0, VLabel _hyp = fst::SymbolTable::kNoSymbol): label(_sample, _label), hyp(_hyp) {}
+  _sQuery(size_t _sample = size_t(-1), VLabel _label = fst::SymbolTable::kNoSymbol, VLabel _hyp = fst::SymbolTable::kNoSymbol): label(_sample, _label), hyp(_hyp) {}
 } Query;
 
 // True if specified labels match (don't match) when M is

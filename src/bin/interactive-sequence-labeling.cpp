@@ -23,6 +23,7 @@
 
 #include <fst/fstlib.h>
 #include <openlat/interactive-sequence-labeling.h>
+#include <openlat/normalize.h>
 
 
 #include <vector>
@@ -40,21 +41,21 @@ using namespace openlat;
 int main (int argc, char *argv[]) {
   //INIT_TRACE();
 
-  cout.precision(3);
+  cerr.precision(3);
 
-  assert_bt(argc >= 3, "Invalid number of parameters");
-  ifstream file_in(argv[1]);
-  ifstream refs_in(argv[2]);
+  assert_bt(argc >= 4, "Invalid number of parameters");
+  ifstream file_in(argv[2]);
+  ifstream refs_in(argv[3]);
   string reference;
   string filename;
 
   float amscale = 1.0;
-  if (argc >= 4) amscale = convert_string<float>(argv[3]);
+  if (argc >= 5) amscale = convert_string<float>(argv[4]);
 
   float pruning_threshold = .0;
-  if (argc >= 5) pruning_threshold = convert_string<float>(argv[4]);
+  if (argc >= 6) pruning_threshold = convert_string<float>(argv[5]);
 
-  vector<VectorFst<LogArc> *> fsts;
+  vector<const VectorFst<LogArc> *> fsts;
   vector<vector <VLabel> > refs;
 
   cerr << "Loading lattices\n";
@@ -65,7 +66,7 @@ int main (int argc, char *argv[]) {
     //cerr << "Loading " << filename << " ...\n";
     VectorFst<LogArc> *fst = VectorFst<LogArc>::Read(filename);
 
-    if (amscale != 1.0) ArcMap(fst, TimesMapper<LogArc>(amscale));
+    if (amscale != 1.0) ArcMap(fst, PowerMapper<LogArc>(amscale));
 
 // XXX:   if (pruning_threshold != 0) {
 //      VectorFst<Arc> * fst_pruned = new VectorFst<Arc>();
@@ -82,24 +83,55 @@ int main (int argc, char *argv[]) {
     refs.push_back(ref);
   }
 
+  assert_bt(fsts.size() > 0, "No fsts exist!!!");
+
   cerr << "Finish loading lattices\n";
 
   srand(time(NULL));
-//  LocalSystem<LogArc, LogQueryFilter, RecomputeGreedy<LogArc, LogQueryFilter> > system(fsts);
-//  LocalSystem<LogArc, LogQueryFilter, RecomputeSequential<LogArc, LogQueryFilter>, sort_pool_by_label> system(fsts);
-    LocalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter>, sort_pool_by_label> system(fsts);
-//  LocalSystem<LogArc, LogQueryFilter, RecomputeSequential<LogArc, LogQueryFilter>, sort_pool_by_label_reverse> system(fsts);
-//  LocalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter>, sort_pool_by_label_reverse> system(fsts);
-//  LocalSystem<LogArc, LogQueryFilter, RecomputeSequential<LogArc, LogQueryFilter> > system(fsts);
-//  LocalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter> > system(fsts);
-//  GlobalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter> > system(fsts);
 
-  Oracle oracle(refs);
+  string method(argv[1]);
 
-  oracle.evaluate(&system);
+  ISystem *system = 0;
+
+  if (method == "random") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeRandom<LogArc, LogConstraintFilter> >(fsts);
+  }
+  else if (method == "sequential-path") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
+  }
+  else if (method == "sequential-symbol") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
+  }
+  else if (method == "reverse-sequential-path") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter>, sort_pool_by_label_reverse>(fsts);
+  }
+  else if (method == "reverse-sequential-symbol") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label_reverse>(fsts);
+  }
+  else if (method == "active-path") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter> >(fsts);
+  }
+  else if (method == "active-symbol") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectation<LogArc, LogConstraintFilter> >(fsts);
+  }
+  else if (method == "global-active-path") {
+    system = new GlobalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter> >(fsts);
+  }
+  else if (method == "global-active-symbol") {
+    system = new GlobalSystem<LogArc, LogConstraintFilter, RecomputeExpectation<LogArc, LogConstraintFilter> >(fsts);
+  }
+
+  assert_bt(system != 0, "Invalid method name");
+
+  const SymbolTable *isymbols = (*fsts.begin())->InputSymbols();
+  const SymbolTable *osymbols = (*fsts.begin())->OutputSymbols();
+  Oracle oracle(refs, isymbols, osymbols);
+
+  oracle.evaluate(system);
 
   cout << oracle.c << "\n";
 
+  delete system;
   for (size_t i = 0; i < fsts.size(); i++) delete fsts[i];
   return EXIT_SUCCESS;
 

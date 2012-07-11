@@ -173,11 +173,11 @@ BOOST_AUTO_TEST_CASE(oracle)
 {
   BOOST_CHECK(Verify(fst));
 
-  vector<VectorFst<LogArc> *> fsts(1, &fst);
+  vector<const VectorFst<LogArc> *> fsts(1, &fst);
   vector<vector<VLabel> > refs(1, ref);
 
-  LocalSystem<LogArc, LogQueryFilter, RecomputeExpectation<LogArc, LogQueryFilter> > system(fsts);
-  Oracle oracle(refs);
+  LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectation<LogArc, LogConstraintFilter> > system(fsts);
+  Oracle oracle(refs, fst.InputSymbols(), fst.OutputSymbols());
 
   oracle.evaluate(&system);
 
