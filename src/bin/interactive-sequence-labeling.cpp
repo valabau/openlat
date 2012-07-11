@@ -55,7 +55,7 @@ int main (int argc, char *argv[]) {
   float pruning_threshold = .0;
   if (argc >= 6) pruning_threshold = convert_string<float>(argv[5]);
 
-  vector<const VectorFst<LogArc> *> fsts;
+  vector<const MutableFst<LogArc> *> fsts;
   vector<vector <VLabel> > refs;
 
   cerr << "Loading lattices\n";
@@ -106,7 +106,7 @@ int main (int argc, char *argv[]) {
     system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter>, sort_pool_by_label_reverse>(fsts);
   }
   else if (method == "reverse-sequential-symbol") {
-    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label_reverse>(fsts);
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter, true>, sort_pool_by_label_reverse>(fsts);
   }
   else if (method == "active-path") {
     system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter> >(fsts);

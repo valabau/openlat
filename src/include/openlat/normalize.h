@@ -139,7 +139,7 @@ void DeterminizeAndNormalize(const fst::Fst<Arc> &ifst,
 
 template <class W>
 inline float Entropy(const W &w, const W &fwd) {
-  if (not w.Member() or w == W::Zero()) return w.Value();
+  if (not w.Member() or w == W::Zero()) return 0;
   return -w.Value() * exp(-w.Value() -fwd.Value());
 }
 
@@ -150,10 +150,8 @@ float Entropy(const fst::Fst<Arc> &fst) {
   typedef typename Arc::Weight Weight;
 
   std::vector<Weight> forward;
-  std::vector<Weight> backward;
 
   fst::ShortestDistance(fst, &forward);
-  fst::ShortestDistance(fst, &backward, true);
 
   float perplexity = .0;
   for (fst::StateIterator<fst::Fst<Arc> > siter(fst); !siter.Done(); siter.Next()) {

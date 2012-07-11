@@ -329,12 +329,17 @@ public:
 template <class Arc, class Filter, typename Recompute>
 class System: public ISystem {
 public:
-  std::vector<const fst::VectorFst<Arc> *> fsts; //< store all fsts samples
+  std::vector<fst::MutableFst<Arc> *> fsts; //< store all fsts samples
   std::vector<Filter> constraints; //< store all fsts constraints
   std::tr1::unordered_map<SampleLabel, PoolV> elems; //< pool of hypotheses
   std::vector< std::vector<bool> > assigned_labels; //< store already assigned labels for each sample
+  Recompute recompute;
 
-  System(const std::vector<const fst::VectorFst<Arc> *> &_fsts): fsts(_fsts), constraints(fsts.size()) {
+  System(const std::vector<const fst::MutableFst<Arc> *> &_fsts) {
+    for (size_t i = 0; i < _fsts.size(); i++) {
+      fsts.push_back(recompute.prepare(*_fsts[i]));
+    }
+    constraints.resize(fsts.size());
     assigned_labels.resize(fsts.size());
     for (size_t s = 0; s < fsts.size(); s++) {
       // obtain the number of labels for this sample
@@ -348,12 +353,18 @@ public:
 
   }
 
+  virtual ~System() {
+    for (size_t i = 0; i < fsts.size(); i++) {
+      delete fsts[i];
+    }
+  };
+
   virtual Query askLabel() = 0;
   virtual void fixLabel(const Query &query, vector<VLabel> &hyp) = 0;
 
   /** Recompute scores using the Recompute template argument */
   virtual void recomputeScores(const Query &query, vector<VLabel> &hyp, vector<float> &scores) {
-    Recompute()(*fsts[query.label.sample], constraints[query.label.sample], assigned_labels[query.label.sample], hyp, scores);
+    recompute(*fsts[query.label.sample], constraints[query.label.sample], assigned_labels[query.label.sample], hyp, scores);
   }
 
   /** accept query as a correct solution */
@@ -382,7 +393,6 @@ public:
       it->second.score = scores[i];
     }
   }
-  virtual ~System() {};
 };
 
 
@@ -396,7 +406,7 @@ template <class Arc, class Filter, typename Recompute, typename Less = sort_pool
 class LocalSystem: public System<Arc, Filter, Recompute> {
   typedef System<Arc, Filter, Recompute> Base;
 public:
-  LocalSystem(std::vector<const fst::VectorFst<Arc> *>& _fsts): Base(_fsts), next_sample(0), pool(Base::fsts.size()) {
+  LocalSystem(std::vector<const fst::MutableFst<Arc> *>& _fsts): Base(_fsts), next_sample(0), pool(Base::fsts.size()) {
     for (Pool::const_iterator it = Base::elems.begin(); it != Base::elems.end(); ++it) {
       pool[it->first.sample].push_back(it);
     }
@@ -442,7 +452,7 @@ template <class Arc, class Filter, typename Recompute, typename Less = sort_pool
 class GlobalSystem: public System<Arc, Filter, Recompute> {
 public:
   typedef System<Arc, Filter, Recompute> Base;
-  GlobalSystem(std::vector<const fst::VectorFst<Arc> *>& _fsts): Base(_fsts) {
+  GlobalSystem(std::vector<const fst::MutableFst<Arc> *>& _fsts): Base(_fsts) {
     for (Pool::const_iterator it = Base::elems.begin(); it != Base::elems.end(); ++it) {
       pool.push_back(it);
     }
@@ -475,7 +485,8 @@ protected:
 
 template <class Arc, class Filter>
 struct RecomputeRandom {
-  void operator()(const fst::VectorFst<Arc> &fst, const Filter &filter, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
+  fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) { return fst.Copy(); }
+  void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
     typedef ArcFilterMapper<Arc, Filter> Mapper;
     Mapper mapper(filter);
     fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
@@ -489,7 +500,8 @@ struct RecomputeRandom {
 
 template <class Arc, class Filter>
 struct RecomputeGreedy {
-  void operator()(const fst::VectorFst<Arc> &fst, const Filter &filter, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
+  fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) { return fst.Copy(); }
+  void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
     typedef ArcFilterMapper<Arc, Filter> Mapper;
     Mapper mapper(filter);
     fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
@@ -500,7 +512,8 @@ struct RecomputeGreedy {
 
 template <class Arc, class Filter>
 struct RecomputeSequential {
-  void operator()(const fst::VectorFst<Arc> &fst, const Filter &filter, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
+  fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) { return fst.Copy(); }
+  void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
     typedef ArcFilterMapper<Arc, Filter> Mapper;
     Mapper mapper(filter);
     fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
@@ -520,33 +533,45 @@ typename Arc::Weight FstMass(const fst::Fst<Arc> &fst) {
   return distance[fst.Start()];
 }
 
-template <class Arc, class Filter>
+template <class Arc, class Filter, bool reverse = false>
 struct RecomputeSequentialExpectation {
-  void operator()(const fst::VectorFst<Arc> &fst, const Filter &filter, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
+  fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) {
+    if (reverse) {
+      // first reverse the original fst
+      fst::MutableFst<Arc> *rfst = new fst::VectorFst<Arc>();
+      fst::Reverse(fst, rfst);
+
+      // now normalize
+      fst::MutableFst<Arc> *nfst = new fst::VectorFst<Arc>();
+      DeterminizeAndNormalize(*rfst, nfst);
+      delete rfst;
+      return nfst;
+    }
+    else {
+      fst::MutableFst<Arc> *nfst = new fst::VectorFst<Arc>();
+      DeterminizeAndNormalize(fst, nfst);
+      return nfst;
+    }
+  }
+  void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
     typedef ArcFilterMapper<Arc, Filter> Mapper;
     typedef typename Arc::Weight Weight;
     typedef typename Arc::Label Label;
     typedef typename Arc::StateId StateId;
-
-    fst::VectorFst<Arc> nfst;
-    {
-//      Filter current_constraints(filter);
-//      Mapper mapper(current_constraints);
-//      fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
-
-      DeterminizeAndNormalize(fst, &nfst);
-    }
 
     // reset scores and hyp
     scores.clear();
     scores.resize(assigned_labels.size(), -Arc::Weight::Zero().Value());
     hyp.resize(assigned_labels.size());
 
-    StateId current_state = nfst.Start();
-    for (size_t label = 0; label < assigned_labels.size(); label++) {
+    StateId current_state = fst.Start();
+    for (size_t l = 0; l < assigned_labels.size(); l++) {
+      size_t label = l;
+      if (reverse) label = assigned_labels.size() - l - 1;
+
       Weight max_weight = Weight::Zero();
 
-      for (fst::ArcIterator < fst::Fst<Arc> > aiter(nfst, current_state); !aiter.Done(); aiter.Next()) {
+      for (fst::ArcIterator < fst::Fst<Arc> > aiter(fst, current_state); !aiter.Done(); aiter.Next()) {
         const Arc &arc = aiter.Value();
         Label assigned = filter.getMatch(label);
         if (assigned_labels[label]) {
@@ -579,7 +604,8 @@ struct RecomputeSequentialExpectation {
 
 template <class Arc, class Filter>
 struct RecomputeExpectation {
-  void operator()(const fst::VectorFst<Arc> &fst, const Filter &filter, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
+  fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) { return fst.Copy(); }
+  void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
     typedef FilterMapper<Arc, Filter> Mapper;
 
     // reset scores and hyp

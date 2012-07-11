@@ -173,7 +173,7 @@ BOOST_AUTO_TEST_CASE(oracle)
 {
   BOOST_CHECK(Verify(fst));
 
-  vector<const VectorFst<LogArc> *> fsts(1, &fst);
+  vector<const MutableFst<LogArc> *> fsts(1, &fst);
   vector<vector<VLabel> > refs(1, ref);
 
   LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectation<LogArc, LogConstraintFilter> > system(fsts);
