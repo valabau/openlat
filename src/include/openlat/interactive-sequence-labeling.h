@@ -31,7 +31,9 @@
 #include <openlat/rmarc.h>
 #include <openlat/verify.h>
 #include <openlat/query.h>
+#include <openlat/search-path.h>
 #include <openlat/constrain.h>
+#include <openlat/normalize.h>
 
 namespace openlat {
 
@@ -287,7 +289,9 @@ public:
       vector<VLabel> hyp;
       system->fixLabel(query, hyp);
       n_errors[query.label.sample] = edit_distance(refs[query.label.sample], hyp);
-//      if (n_errors[query.label.sample] > 0) cout << "filt " << query.label.sample << " " << n_errors[query.label.sample] << "\n";
+//      if (n_errors[query.label.sample] > 0) {
+      cout << "filt " << query.label.sample << " " << query.label.label << " " << n_errors[query.label.sample] << "\n";
+//      }
     }
     printStats(0, Query());
 
@@ -306,6 +310,7 @@ public:
         system->fixLabel(query, hyp); // fix the hypothesis in the system
         // recompute the number of errors for the given sample
         size_t dist = edit_distance(refs[query.label.sample], hyp);
+        cout << "filt " << query.label.sample << " " << query.label.label << " " << n_errors[query.label.sample] << "\n";
 //        size_t n_err = n_errors[query.label.sample];
         n_errors[query.label.sample] = dist;
       }
@@ -314,6 +319,7 @@ public:
 //        system->acceptLabel(query);
         vector<VLabel> hyp;
         system->fixLabel(query, hyp); // this is necessary to acknowledge the system
+        cout << "filt " << query.label.sample << " " << query.label.label << " " << n_errors[query.label.sample] << "\n";
       }
       // print the updated stats
       printStats(s + 1, query);
@@ -329,15 +335,18 @@ public:
 template <class Arc, class Filter, typename Recompute>
 class System: public ISystem {
 public:
+  typedef typename Arc::Label Label;
+
   std::vector<fst::MutableFst<Arc> *> fsts; //< store all fsts samples
   std::vector<Filter> constraints; //< store all fsts constraints
-  std::tr1::unordered_map<SampleLabel, PoolV> elems; //< pool of hypotheses
+  Pool elems; //< pool of hypotheses
   std::vector< std::vector<bool> > assigned_labels; //< store already assigned labels for each sample
   Recompute recompute;
 
   System(const std::vector<const fst::MutableFst<Arc> *> &_fsts) {
     for (size_t i = 0; i < _fsts.size(); i++) {
       fsts.push_back(recompute.prepare(*_fsts[i]));
+//      cout << "entropy1 " << i << " " << Entropy(*fsts.back()) << "\n";
     }
     constraints.resize(fsts.size());
     assigned_labels.resize(fsts.size());
@@ -395,6 +404,157 @@ public:
   }
 };
 
+typedef std::pair<size_t, float> SampleScore;
+
+/**
+ * structure function to sort the SampleScore Pool according to the original position
+ */
+struct sort_sample_score_by_position {
+  size_t operator()(const SampleScore* __x, const SampleScore* __y) const {
+    return __x->first > __y->first;
+  }
+};
+
+/**
+ * structure function to sort the SampleScore Pool according to the original score
+ */
+struct sort_sample_score_by_score {
+  size_t operator()(const SampleScore* __x, const SampleScore* __y) const {
+    return __x->second > __y->second;
+  }
+};
+
+template <class Arc>
+struct RandomSampleScorer {
+  float operator()(const fst::Fst<Arc> &fst) {
+    return log(static_cast<float>(rand())/static_cast<float>(RAND_MAX));
+  }
+};
+
+template <class Arc>
+struct EntropySampleScorer {
+  float operator()(const fst::Fst<Arc> &fst) {
+    return Entropy(fst);
+  }
+};
+
+template <class Arc>
+struct MaxMutualInformationSampleScorer {
+  float operator()(const fst::Fst<Arc> &fst) {
+    float mutual_information = 0;
+
+    std::vector<std::set<typename Arc::Label> > symbols;
+    GetOutputSymbols(fst, &symbols);
+
+    for (size_t l = 0; l < symbols.size(); l++) {
+      mutual_information = std::max(mutual_information, MutualInformation<Arc>(fst, l+1));
+    }
+
+    return - mutual_information;
+  }
+};
+
+
+template <class Arc>
+struct AvgMutualInformationSampleScorer {
+  float operator()(const fst::Fst<Arc> &fst) {
+    float mutual_information = 0;
+
+    std::vector<std::set<typename Arc::Label> > symbols;
+    GetOutputSymbols(fst, &symbols);
+
+    for (size_t l = 0; l < symbols.size(); l++) {
+      mutual_information += MutualInformation<Arc>(fst, l+1);
+    }
+
+    return -mutual_information/static_cast<float>(symbols.size());
+  }
+};
+
+
+/** @class LocalSystem
+ *  @brief A local system selects the query based exclusively on the current sample
+ *
+ *  The local system iterates over the samples making just one query per sample.
+ *  In the next iteration it performs another query per sample, and so on.
+ */
+template <class Arc, class Filter, typename Recompute, typename Less = sort_pool_by_score,
+          typename SampleScorer = RandomSampleScorer<Arc>, typename SampleLess = sort_sample_score_by_position, bool update = false>
+class LocalSystem: public System<Arc, Filter, Recompute> {
+  typedef System<Arc, Filter, Recompute> Base;
+public:
+  LocalSystem(std::vector<const fst::MutableFst<Arc> *>& _fsts): Base(_fsts), pool(Base::fsts.size()) {
+    for (Pool::const_iterator it = Base::elems.begin(); it != Base::elems.end(); ++it) {
+      pool[it->first.sample].push_back(it);
+    }
+    for (size_t n = 0; n < Base::fsts.size(); n++) {
+      float score = SampleScorer()(*Base::fsts[n]);
+//      cout << "entropy2 " << n << " " << entropy << "\n";
+      sample_scores_orig.push_back(SampleScore(n, score));
+    }
+    // we need to push back the sample pointers in another loop since
+    // in the previous loop a vector resize might reallocate the memory
+    // and this change the addresses
+    sample_scores.resize(sample_scores_orig.size());
+    for (size_t n = 0; n < Base::fsts.size(); n++) {
+      sample_scores[n] = &sample_scores_orig[n];
+    }
+    make_heap(sample_scores.begin(), sample_scores.end(), SampleLess());
+  }
+
+  virtual ~LocalSystem() {};
+
+  /** Ask next label */
+  virtual Query askLabel() {
+    Query query;
+
+    SampleScore *next = sample_scores.front();
+    while (pool[next->first].empty()) {
+      pop_heap(sample_scores.begin(), sample_scores.end(), SampleLess());
+      sample_scores.pop_back();
+      next = sample_scores.front();
+    }
+
+    // process next sample in the queue
+    query.label.sample = sample_scores.front()->first;
+
+    // pop min element from pool[query.sample]
+    pop_heap(pool[query.label.sample].begin(), pool[query.label.sample].end(), Less());
+
+    // return query and remove it from the queue
+    query.label.label = (pool[query.label.sample].back())->first.label;
+    query.hyp         = (pool[query.label.sample].back())->second.hyp;
+    pool[query.label.sample].pop_back();
+    return query;
+  }
+
+  /** Assign query and update re-sort the queue jut for the current sample */
+  virtual void fixLabel(const Query &query, vector<VLabel> &hyp) {
+    Base::update(query, hyp);
+
+    if (update and query.label.label != fst::kNoLabel) {
+      typedef WeightToZeroFilterMapper<Arc, Filter> Mapper;
+      Mapper mapper(Base::constraints[query.label.sample]);
+      fst::VectorFst<Arc> cond_fst(*Base::fsts[query.label.sample]);
+      fst::Map(&cond_fst, mapper);
+      Normalize(&cond_fst);
+      float score = SampleScorer()(cond_fst);
+      sample_scores_orig[query.label.sample].second = score;
+      cout << "entropy " << query.label.sample << " " << query.label.label << " " << score << " ";
+      make_heap(sample_scores.begin(), sample_scores.end(), SampleLess());
+    }
+
+
+    std::vector<Pool::const_iterator> &ps = pool[query.label.sample];
+    make_heap(ps.begin(), ps.end(), Less());
+  }
+
+protected:
+  std::vector<SampleScore *> sample_scores; //< to sort samples
+  std::vector<SampleScore> sample_scores_orig; //< samples in original order
+  std::vector< std::vector<Pool::const_iterator>  > pool; //< a pool of queries for each sample
+};
+
 
 /** @class LocalSystem
  *  @brief A local system selects the query based exclusively on the current sample
@@ -403,14 +563,16 @@ public:
  *  In the next iteration it performs another query per sample, and so on.
  */
 template <class Arc, class Filter, typename Recompute, typename Less = sort_pool_by_score>
-class LocalSystem: public System<Arc, Filter, Recompute> {
+class TraversalLocalSystem: public System<Arc, Filter, Recompute> {
   typedef System<Arc, Filter, Recompute> Base;
 public:
-  LocalSystem(std::vector<const fst::MutableFst<Arc> *>& _fsts): Base(_fsts), next_sample(0), pool(Base::fsts.size()) {
+  TraversalLocalSystem(std::vector<const fst::MutableFst<Arc> *>& _fsts): Base(_fsts), next_sample(0), pool(Base::fsts.size()) {
     for (Pool::const_iterator it = Base::elems.begin(); it != Base::elems.end(); ++it) {
       pool[it->first.sample].push_back(it);
     }
   }
+
+  virtual ~TraversalLocalSystem() {};
 
   /** Ask next label */
   virtual Query askLabel() {
@@ -436,8 +598,6 @@ public:
     std::vector<Pool::const_iterator> &ps = pool[query.label.sample];
     make_heap(ps.begin(), ps.end(), Less());
   }
-
-  virtual ~LocalSystem() {};
 
 protected:
   size_t next_sample; //< which is the next sample to process
@@ -483,6 +643,7 @@ protected:
   vector<Pool::const_iterator> pool; //< a global pool of queries
 };
 
+
 template <class Arc, class Filter>
 struct RecomputeRandom {
   fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) { return fst.Copy(); }
@@ -493,20 +654,8 @@ struct RecomputeRandom {
 
     ShortestPath(_fst, hyp, scores);
     for (size_t l = 0; l < scores.size(); l++) {
-      scores[l] = -static_cast<float>(rand())/static_cast<float>(RAND_MAX);
+      scores[l] = log(static_cast<float>(rand())/static_cast<float>(RAND_MAX));
     }
-  }
-};
-
-template <class Arc, class Filter>
-struct RecomputeGreedy {
-  fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) { return fst.Copy(); }
-  void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>&, vector<VLabel> &hyp, vector<float> &scores) {
-    typedef ArcFilterMapper<Arc, Filter> Mapper;
-    Mapper mapper(filter);
-    fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
-
-    ShortestPath(_fst, hyp, scores);
   }
 };
 
@@ -533,24 +682,38 @@ typename Arc::Weight FstMass(const fst::Fst<Arc> &fst) {
   return distance[fst.Start()];
 }
 
-template <class Arc, class Filter, bool reverse = false>
+template <class Arc, class Filter, bool reverse = false, bool normalize = true>
 struct RecomputeSequentialExpectation {
   fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) {
-    if (reverse) {
-      // first reverse the original fst
-      fst::MutableFst<Arc> *rfst = new fst::VectorFst<Arc>();
-      fst::Reverse(fst, rfst);
+    if (normalize) {
+      if (reverse) {
+        // first reverse the original fst
+        fst::MutableFst<Arc> *rfst = new fst::VectorFst<Arc>();
+        fst::Reverse(fst, rfst);
 
-      // now normalize
-      fst::MutableFst<Arc> *nfst = new fst::VectorFst<Arc>();
-      DeterminizeAndNormalize(*rfst, nfst);
-      delete rfst;
-      return nfst;
+        // now normalize
+        fst::MutableFst<Arc> *nfst = new fst::VectorFst<Arc>();
+        DeterminizeAndNormalize(*rfst, nfst);
+        delete rfst;
+        return nfst;
+      }
+      else {
+        fst::MutableFst<Arc> *nfst = new fst::VectorFst<Arc>();
+        DeterminizeAndNormalize(fst, nfst);
+        return nfst;
+      }
     }
     else {
-      fst::MutableFst<Arc> *nfst = new fst::VectorFst<Arc>();
-      DeterminizeAndNormalize(fst, nfst);
-      return nfst;
+      if (reverse) {
+        // first reverse the original fst
+        fst::MutableFst<Arc> *rfst = new fst::VectorFst<Arc>();
+        fst::Reverse(fst, rfst);
+        return rfst;
+      }
+      else {
+        fst::MutableFst<Arc> *nfst = new fst::VectorFst<Arc>(fst);
+        return nfst;
+      }
     }
   }
   void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
@@ -606,7 +769,64 @@ template <class Arc, class Filter>
 struct RecomputeExpectation {
   fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) { return fst.Copy(); }
   void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
-    typedef FilterMapper<Arc, Filter> Mapper;
+    typedef WeightToZeroFilterMapper<Arc, Filter> Mapper;
+
+    // reset scores and hyp
+    scores.clear();
+    scores.resize(assigned_labels.size(), -Arc::Weight::Zero().Value());
+    hyp.resize(assigned_labels.size());
+    float max_score = -Arc::Weight::Zero().Value();
+
+    // obtain the available members for each label
+    std::vector< std::set<typename Arc::Label> > members;
+    GetOutputSymbols(fst, &members);
+
+    // for each unassigned label
+    for (size_t label = 0; label < assigned_labels.size(); label++) {
+      if (not assigned_labels[label]) {
+
+        // reset the best hyp
+        vector<VLabel> best_hyp(assigned_labels.size(), fst::SymbolTable::kNoSymbol);
+        float max_member_score = Arc::Weight::Zero().Value();
+        // for each possible member for this label
+        for (typename std::set<typename Arc::Label>::const_iterator mem_it = members[label].begin();
+            mem_it != members[label].end(); ++mem_it)
+        {
+          size_t member = *mem_it;
+
+          // build a fst where (label, member) is selected
+          // and some arcs are disabled according to mapper
+//          Filter filter(label, member);
+//          Mapper mapper(filter, dead_state);
+//          fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
+
+//          float score = -FstMass(_fst);
+
+          // accumulate the score for this label
+//          scores[label] = add_log(scores[label], score);
+//          if (score > max_member_score) {
+//            max_member_score = score;
+//            copy(lhyp.begin(), lhyp.end(), best_hyp.begin());
+//          }
+        }
+
+
+        // if the score for this label is better than for the rest, update
+        if (scores[label] > max_score) {
+          max_score = scores[label];
+          copy(best_hyp.begin(), best_hyp.end(), hyp.begin());
+        }
+      } // if not assigned label
+    }
+
+  }
+};
+
+template <class Arc, class Filter>
+struct RecomputePathExpectation {
+  fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) { return fst.Copy(); }
+  void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
+    typedef WeightToZeroFilterMapper<Arc, Filter> Mapper;
 
     // reset scores and hyp
     scores.clear();

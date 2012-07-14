@@ -144,15 +144,14 @@ BOOST_AUTO_TEST_CASE(mapper)
   BOOST_CHECK(lhyp[0] == 1);
   BOOST_CHECK(lhyp[1] == 2);
 
-  LogVectorFst::StateId dead_state = fst.AddState();
   for (vector<QueryResult>::const_iterator it = queries.begin(); it < queries.end(); ++it) {
     typedef LogArc Arc;
     typedef LogQueryFilter Filter;
-    typedef FilterMapper<Arc, Filter> Mapper;
+    typedef WeightToZeroFilterMapper<Arc, Filter> Mapper;
 
     const QueryResult &q = *it;
     Filter filter(q.label, q.member);
-    Mapper qmapper(filter, dead_state);
+    Mapper qmapper(filter);
     MapFst<Arc, Arc, Mapper> _fst(fst, qmapper);
 
     // obtain the shortest path with the restriction (label, member)
@@ -165,7 +164,6 @@ BOOST_AUTO_TEST_CASE(mapper)
       BOOST_CHECK(lhyp[i] == q.result[i]);
     }
   }
-  fst.DeleteStates(vector<LogVectorFst::StateId>(1, dead_state));
 
 }
 

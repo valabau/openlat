@@ -94,25 +94,46 @@ int main (int argc, char *argv[]) {
   ISystem *system = 0;
 
   if (method == "random") {
-    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeRandom<LogArc, LogConstraintFilter> >(fsts);
+    system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeRandom<LogArc, LogConstraintFilter> >(fsts);
   }
   else if (method == "sequential-path") {
-    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
+    system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
   }
   else if (method == "sequential-symbol") {
-    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
+    system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
+  }
+  else if (method == "sorted-sequential-symbol") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "sorted-sequential-symbol-posterior") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_score, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "sorted-sequential-mutual-information") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label, MaxMutualInformationSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "sorted-updated-sequential-symbol") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label, EntropySampleScorer<LogArc>, sort_sample_score_by_score, true>(fsts);
+  }
+  else if (method == "sorted-updated-sequential-mutual-information") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label, MaxMutualInformationSampleScorer<LogArc>, sort_sample_score_by_score, true>(fsts);
   }
   else if (method == "reverse-sequential-path") {
-    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter>, sort_pool_by_label_reverse>(fsts);
+    system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter>, sort_pool_by_label_reverse>(fsts);
   }
   else if (method == "reverse-sequential-symbol") {
-    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter, true>, sort_pool_by_label_reverse>(fsts);
+    system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter, true>, sort_pool_by_label_reverse>(fsts);
+  }
+  else if (method == "sequential-greedy") {
+    system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter, false, false>, sort_pool_by_label>(fsts);
+  }
+  else if (method == "reverse-sequential-greedy") {
+    system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter, true, false>, sort_pool_by_label_reverse>(fsts);
   }
   else if (method == "active-path") {
-    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter> >(fsts);
+    system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter> >(fsts);
   }
   else if (method == "active-symbol") {
-    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectation<LogArc, LogConstraintFilter> >(fsts);
+    system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeExpectation<LogArc, LogConstraintFilter> >(fsts);
   }
   else if (method == "global-active-path") {
     system = new GlobalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter> >(fsts);

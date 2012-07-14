@@ -65,51 +65,11 @@ private:
 typedef QueryFilter<fst::LogArc> LogQueryFilter;
 
 
-template<class Arc>
-float ShortestPath(const fst::Fst<Arc> &fst, vector<VLabel> &hyp, vector<float> &scores) {
-  typedef fst::VectorFst<Arc> Fst;
-  Fst *best = new Fst();
-
-  ShortestPath(fst, best);
-
-  float score = 0;
-  hyp.clear();
-  scores.clear();
-
-  typename Arc::StateId state = best->Start();
-  while (state != fst::kNoStateId) {
-    // cerr << "state: " << state << "\n";
-    bool is_final = best->Final(state) != Arc::Weight::Zero();
-    assert_bt((not is_final and best->NumArcs(state) == 1)
-           or (is_final and best->NumArcs(state) == 0), "Unexpected number of arcs in 1-best fst\n");
-    typename Arc::StateId nextstate = fst::kNoStateId;
-    for (fst::ArcIterator<Fst> aiter(*best, state); !aiter.Done(); aiter.Next()) {
-      typename Fst::Arc arc = aiter.Value();
-      // cerr << "arc: " << arc.ilabel << " " << arc.olabel << " " << arc.weight.Value()  << " " << arc.nextstate << "\n";
-      hyp.push_back(arc.olabel);
-      scores.push_back(arc.weight.Value());
-      nextstate = arc.nextstate;
-    }
-    state = nextstate;
-  }
-
-  delete best;
-
-  return score;
-}
-
-template<>
-float ShortestPath<fst::LogArc>(const fst::Fst<fst::LogArc> &fst, vector<VLabel> &hyp, vector<float> &scores) {
-  fst::MapFst<fst::LogArc, fst::StdArc, fst::LogToStdMapper> _fst(fst, fst::LogToStdMapper());
-  return ShortestPath<fst::StdArc>(_fst, hyp, scores);
-}
-
-
 
 // WeightConvert class specialization that converts the weights.
 // Mapper that changes nextstate to a dead state based on an ArcFilter
 template <class A, class ArcFilter>
-class FilterMapper {
+class DeadStateFilterMapper {
  public:
   typedef A FromArc;
   typedef A ToArc;
@@ -117,7 +77,7 @@ class FilterMapper {
   typedef typename FromArc::Weight FromWeight;
   typedef typename ToArc::Weight ToWeight;
 
-  FilterMapper(const Filter &filter, typename A::StateId dead_state): filter_(filter), dead_state_(dead_state) {};
+  DeadStateFilterMapper(const Filter &filter, typename A::StateId dead_state): filter_(filter), dead_state_(dead_state) {};
 
   ToArc operator()(const FromArc &arc) const {
     return ToArc(arc.ilabel, arc.olabel,
@@ -139,7 +99,37 @@ class FilterMapper {
   typename A::StateId dead_state_;
 };
 
-typedef FilterMapper<fst::LogArc, LogQueryFilter> QueryMapper;
+typedef DeadStateFilterMapper<fst::LogArc, LogQueryFilter> QueryMapper;
+
+// WeightConvert class specialization that converts the weights.
+// Mapper that changes nextstate to a dead state based on an ArcFilter
+template <class A, class ArcFilter>
+class WeightToZeroFilterMapper {
+ public:
+  typedef A FromArc;
+  typedef A ToArc;
+  typedef ArcFilter Filter;
+  typedef typename FromArc::Weight FromWeight;
+  typedef typename ToArc::Weight ToWeight;
+
+  WeightToZeroFilterMapper(const Filter &filter): filter_(filter) {};
+
+  ToArc operator()(const FromArc &arc) const {
+    return ToArc(arc.ilabel, arc.olabel,
+        (filter_(arc))?arc.weight:ToWeight::Zero(), arc.nextstate);
+  }
+
+  fst::MapFinalAction FinalAction() const { return fst::MAP_NO_SUPERFINAL; }
+
+  fst::MapSymbolsAction InputSymbolsAction() const { return fst::MAP_COPY_SYMBOLS; }
+
+  fst::MapSymbolsAction OutputSymbolsAction() const { return fst::MAP_COPY_SYMBOLS;}
+
+  uint64 Properties(uint64 props) const { return props; }
+
+ private:
+  const ArcFilter &filter_;
+};
 
 template <typename L>
 void string_to_syms(const string &str, const fst::SymbolTable *symtab, std::vector<L> &syms) {

@@ -23,9 +23,22 @@
 #ifndef openlat_NORMALIZE_H_
 #define openlat_NORMALIZE_H_
 
+#include <map>
 #include <fst/shortest-distance.h>
+#include <openlat/query.h>
 
 namespace openlat {
+
+template<class Arc>
+size_t NumStates(const fst::Fst<Arc> &fst) {
+  typedef typename Arc::StateId StateId;
+
+  size_t num_states = 0;
+  for (fst::StateIterator<fst::Fst<Arc> > siter(fst); !siter.Done(); siter.Next()) num_states++;
+
+  return num_states;
+}
+
 
 // Mapper to (right) multiply a constant to all weights.
 template <class A>
@@ -149,9 +162,14 @@ float Entropy(const fst::Fst<Arc> &fst) {
   typedef typename Arc::StateId StateId;
   typedef typename Arc::Weight Weight;
 
-  std::vector<Weight> forward;
 
+  std::vector<Weight> forward;
   fst::ShortestDistance(fst, &forward);
+
+  size_t num_states = NumStates<Arc>(fst);
+  if (forward.size() < num_states) {
+    forward.resize(num_states, Weight::Zero());
+  }
 
   float perplexity = .0;
   for (fst::StateIterator<fst::Fst<Arc> > siter(fst); !siter.Done(); siter.Next()) {
@@ -172,6 +190,54 @@ float Entropy(const fst::Fst<Arc> &fst) {
   return perplexity;
 }
 
+template<class Arc>
+float MutualInformation(const fst::Fst<Arc> &fst, typename Arc::Label ilabel) {
+  typedef typename Arc::Label Label;
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+  typedef WeightToZeroFilterMapper<Arc, QueryFilter<Arc> > Mapper;
+
+  std::vector<Weight> forward;
+  std::vector<Weight> backward;
+
+  fst::ShortestDistance(fst, &forward);
+  fst::ShortestDistance(fst, &backward, true);
+
+  size_t num_states = NumStates<Arc>(fst);
+
+  std::map<Label, Weight> probs;
+
+  // accumulate p(ilabel = l)
+  for (fst::StateIterator<fst::Fst<Arc> > siter(fst); !siter.Done(); siter.Next()) {
+    StateId s = siter.Value();
+
+    // ShortestDistance does not fill states that are not reachable at the end of the vector 
+    if (s >= forward.size()) break; 
+
+    for (fst::ArcIterator< fst::Fst<Arc> > aiter(fst, s); !aiter.Done(); aiter.Next()) {
+      Arc arc = aiter.Value();
+      if (arc.ilabel == ilabel and backward[arc.nextstate] != Weight::Zero() and arc.weight != Weight::Zero()) {
+        typename std::map<Label, Weight>::iterator it = probs.find(arc.olabel);
+        if (it == probs.end()) {
+          it = probs.insert(make_pair(arc.olabel, Weight::Zero())).first;
+        }
+        it->second = fst::Plus(it->second, fst::Divide(fst::Times(fst::Times(forward[s], arc.weight), backward[arc.nextstate]), backward[fst.Start()]) );
+      }
+    }
+  }
+
+  // accumulate mutual information
+  float mutual_information = .0;
+  for (typename std::map<Label, Weight>::iterator it = probs.begin(); it != probs.end(); ++it) {
+    QueryFilter<Arc> filter(ilabel, it->first);
+    Mapper mapper(filter);
+    fst::MapFst<Arc, Arc, Mapper> cond_fst(fst, mapper);
+
+    mutual_information -= exp(it->second.Value())*(it->second.Value() + Entropy(cond_fst));
+  }
+
+  return mutual_information;
+}
 
 }
 
