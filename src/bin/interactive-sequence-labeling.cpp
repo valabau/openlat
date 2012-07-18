@@ -102,8 +102,40 @@ int main (int argc, char *argv[]) {
   else if (method == "sequential-symbol") {
     system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
   }
+  else if (method == "sequential-viterbi") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeViterbi<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
+  }
+  else if (method == "sequential-hamming") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
+  }
+  else if (method == "sorted-viterbi") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeViterbi<LogArc, LogConstraintFilter>, sort_pool_by_label, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "sorted-viterbi-hamming") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeViterbi<LogArc, LogConstraintFilter, ExpectedHammingLabelScorer<LogArc> >, sort_pool_by_label, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
   else if (method == "sorted-sequential-symbol") {
     system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "sorted-sequential-hamming") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter>,       sort_pool_by_label, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "sorted-hamming") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter>,       sort_pool_by_score, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "sorted-hamming-num-changes") {
+    system = new LocalSystem<LogArc, LogConstraintFilter,
+                             RecomputeExpectedHamming<LogArc, LogConstraintFilter, ConditionalExpectedNumChangesLabelScorer<LogArc, ShortestPathFunc<LogArc> > >,
+                             sort_pool_by_score, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "sorted-hamming-mutual-information") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter, MutualInformationLabelScorer<LogArc> >, sort_pool_by_score, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "sorted-hamming-expected-accuracy") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter, ConditionalExpectedAccuracyLabelScorer<LogArc> >, sort_pool_by_score, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "sorted-viterbi-expected-accuracy") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter, ConditionalExpectedAccuracyLabelScorer<LogArc> >, sort_pool_by_score, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
   }
   else if (method == "sorted-sequential-symbol-posterior") {
     system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_score, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
@@ -111,11 +143,17 @@ int main (int argc, char *argv[]) {
   else if (method == "sorted-sequential-mutual-information") {
     system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label, MaxMutualInformationSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
   }
+  else if (method == "sorted-sequential-expected-error") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label, ExpectedErrorSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
   else if (method == "sorted-updated-sequential-symbol") {
     system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label, EntropySampleScorer<LogArc>, sort_sample_score_by_score, true>(fsts);
   }
   else if (method == "sorted-updated-sequential-mutual-information") {
     system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label, MaxMutualInformationSampleScorer<LogArc>, sort_sample_score_by_score, true>(fsts);
+  }
+  else if (method == "sorted-updated-sequential-expected-error") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label, ExpectedErrorSampleScorer<LogArc>, sort_sample_score_by_score, true>(fsts);
   }
   else if (method == "reverse-sequential-path") {
     system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter>, sort_pool_by_label_reverse>(fsts);
@@ -131,15 +169,6 @@ int main (int argc, char *argv[]) {
   }
   else if (method == "active-path") {
     system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter> >(fsts);
-  }
-  else if (method == "active-symbol") {
-    system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeExpectation<LogArc, LogConstraintFilter> >(fsts);
-  }
-  else if (method == "global-active-path") {
-    system = new GlobalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter> >(fsts);
-  }
-  else if (method == "global-active-symbol") {
-    system = new GlobalSystem<LogArc, LogConstraintFilter, RecomputeExpectation<LogArc, LogConstraintFilter> >(fsts);
   }
 
   assert_bt(system != 0, "Invalid method name");

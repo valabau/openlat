@@ -26,6 +26,7 @@
 #include <map>
 #include <fst/shortest-distance.h>
 #include <openlat/query.h>
+#include <openlat/search-path.h>
 
 namespace openlat {
 
@@ -150,6 +151,7 @@ void DeterminizeAndNormalize(const fst::Fst<Arc> &ifst,
 }
 
 
+
 template <class W>
 inline float Entropy(const W &w, const W &fwd) {
   if (not w.Member() or w == W::Zero()) return 0;
@@ -166,29 +168,90 @@ float Entropy(const fst::Fst<Arc> &fst) {
   std::vector<Weight> forward;
   fst::ShortestDistance(fst, &forward);
 
-  size_t num_states = NumStates<Arc>(fst);
-  if (forward.size() < num_states) {
-    forward.resize(num_states, Weight::Zero());
-  }
-
-  float perplexity = .0;
+  float entropy = .0;
   for (fst::StateIterator<fst::Fst<Arc> > siter(fst); !siter.Done(); siter.Next()) {
     StateId s = siter.Value();
 
+    // ShortestDistance does not fill states that are not reachable at the end of the vector
+    if (static_cast<size_t>(s) >= forward.size()) break;
+
     for (fst::ArcIterator< fst::Fst<Arc> > aiter(fst, s); !aiter.Done(); aiter.Next()) {
       Arc arc = aiter.Value();
-      perplexity += Entropy(arc.weight, forward[s]);
+      entropy += Entropy(arc.weight, forward[s]);
     }
 
     // add entropy for final state
     if (fst.Final(s) != Weight::Zero()) {
-      perplexity += Entropy(fst.Final(s), forward[s]);
+      entropy += Entropy(fst.Final(s), forward[s]);
     }
 
   }
 
-  return perplexity;
+  return entropy;
 }
+
+template<class Arc>
+void PositionProbabilities(const fst::Fst<Arc> &fst, typename Arc::Label ilabel, std::map<typename Arc::Label, typename Arc::Weight>& probs) {
+  typedef typename Arc::Label Label;
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+  probs.clear();
+
+  std::vector<Weight> forward;
+  std::vector<Weight> backward;
+
+  fst::ShortestDistance(fst, &forward);
+  fst::ShortestDistance(fst, &backward, true);
+
+  if (backward[fst.Start()] == Weight::Zero()) return;
+
+  // accumulate p(ilabel = l)
+  for (fst::StateIterator<fst::Fst<Arc> > siter(fst); !siter.Done(); siter.Next()) {
+    StateId s = siter.Value();
+
+    // ShortestDistance does not fill states that are not reachable at the end of the vector
+    if (static_cast<size_t>(s) >= forward.size()) break;
+
+    for (fst::ArcIterator< fst::Fst<Arc> > aiter(fst, s); !aiter.Done(); aiter.Next()) {
+      Arc arc = aiter.Value();
+      if (arc.ilabel == ilabel and backward[arc.nextstate] != Weight::Zero() and arc.weight != Weight::Zero()) {
+        Weight posterior = fst::Divide(fst::Times(fst::Times(forward[s], arc.weight), backward[arc.nextstate]), backward[fst.Start()]);
+
+        if (posterior != Weight::Zero()) {
+          typename std::map<Label, Weight>::iterator it = probs.find(arc.olabel);
+          if (it == probs.end()) {
+            it = probs.insert(make_pair(arc.olabel, Weight::Zero())).first;
+          }
+          it->second = fst::Plus(it->second, posterior);
+        }
+      }
+    }
+  }
+}
+
+template<class Arc>
+float ConditionalEntropy(const fst::Fst<Arc> &fst, typename Arc::Label ilabel) {
+  typedef typename Arc::Label Label;
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+  typedef WeightToZeroFilterMapper<Arc, QueryFilter<Arc> > Mapper;
+
+  std::map<Label, Weight> probs;
+  PositionProbabilities(fst, ilabel, probs);
+
+  // accumulate mutual information
+  float entropy = .0;
+  for (typename std::map<Label, Weight>::const_iterator it = probs.begin(); it != probs.end(); ++it) {
+    QueryFilter<Arc> filter(ilabel, it->first);
+    Mapper mapper(filter);
+    fst::MapFst<Arc, Arc, Mapper> cond_fst(fst, mapper);
+
+    entropy += to_float<Weight>(it->second) * Entropy(cond_fst);
+  }
+
+  return entropy;
+}
+
 
 template<class Arc>
 float MutualInformation(const fst::Fst<Arc> &fst, typename Arc::Label ilabel) {
@@ -197,34 +260,8 @@ float MutualInformation(const fst::Fst<Arc> &fst, typename Arc::Label ilabel) {
   typedef typename Arc::Weight Weight;
   typedef WeightToZeroFilterMapper<Arc, QueryFilter<Arc> > Mapper;
 
-  std::vector<Weight> forward;
-  std::vector<Weight> backward;
-
-  fst::ShortestDistance(fst, &forward);
-  fst::ShortestDistance(fst, &backward, true);
-
-  size_t num_states = NumStates<Arc>(fst);
-
   std::map<Label, Weight> probs;
-
-  // accumulate p(ilabel = l)
-  for (fst::StateIterator<fst::Fst<Arc> > siter(fst); !siter.Done(); siter.Next()) {
-    StateId s = siter.Value();
-
-    // ShortestDistance does not fill states that are not reachable at the end of the vector 
-    if (s >= forward.size()) break; 
-
-    for (fst::ArcIterator< fst::Fst<Arc> > aiter(fst, s); !aiter.Done(); aiter.Next()) {
-      Arc arc = aiter.Value();
-      if (arc.ilabel == ilabel and backward[arc.nextstate] != Weight::Zero() and arc.weight != Weight::Zero()) {
-        typename std::map<Label, Weight>::iterator it = probs.find(arc.olabel);
-        if (it == probs.end()) {
-          it = probs.insert(make_pair(arc.olabel, Weight::Zero())).first;
-        }
-        it->second = fst::Plus(it->second, fst::Divide(fst::Times(fst::Times(forward[s], arc.weight), backward[arc.nextstate]), backward[fst.Start()]) );
-      }
-    }
-  }
+  PositionProbabilities(fst, ilabel, probs);
 
   // accumulate mutual information
   float mutual_information = .0;
@@ -233,11 +270,70 @@ float MutualInformation(const fst::Fst<Arc> &fst, typename Arc::Label ilabel) {
     Mapper mapper(filter);
     fst::MapFst<Arc, Arc, Mapper> cond_fst(fst, mapper);
 
-    mutual_information -= exp(it->second.Value())*(it->second.Value() + Entropy(cond_fst));
+    mutual_information += to_float<Weight>(it->second)*(Entropy(cond_fst) - (-it->second.Value()));
   }
 
   return mutual_information;
 }
+
+template<class Arc>
+float ConditionalExpectedAccuracy(const fst::Fst<Arc> &fst, typename Arc::Label ilabel) {
+  typedef typename Arc::Label Label;
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+  typedef WeightToZeroFilterMapper<Arc, QueryFilter<Arc> > Mapper;
+
+  std::map<Label, Weight> probs;
+  PositionProbabilities(fst, ilabel, probs);
+
+  // accumulate mutual information
+  float expected_accuracy = .0;
+  for (typename std::map<Label, Weight>::const_iterator it = probs.begin(); it != probs.end(); ++it) {
+    QueryFilter<Arc> filter(ilabel, it->first);
+    Mapper mapper(filter);
+    fst::MapFst<Arc, Arc, Mapper> cond_fst(fst, mapper);
+
+    vector<VLabel> hyp;
+    vector<float> scores;
+    expected_accuracy += to_float<Weight>(it->second) * ShortestHammingPath(cond_fst, hyp, scores);
+  }
+
+  return expected_accuracy;
+}
+
+template<class Arc, typename Search>
+float ConditionalExpectedNumChanges(const fst::Fst<Arc> &fst, typename Arc::Label ilabel) {
+  typedef typename Arc::Label Label;
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+  typedef WeightToZeroFilterMapper<Arc, QueryFilter<Arc> > Mapper;
+
+  std::map<Label, Weight> probs;
+  PositionProbabilities(fst, ilabel, probs);
+
+  vector<VLabel> base_hyp;
+  vector<float> base_scores;
+  Search()(fst, base_hyp, base_scores);
+
+  // accumulate mutual information
+  float expected_num_changes = .0;
+  for (typename std::map<Label, Weight>::const_iterator it = probs.begin(); it != probs.end(); ++it) {
+    QueryFilter<Arc> filter(ilabel, it->first);
+    Mapper mapper(filter);
+    fst::MapFst<Arc, Arc, Mapper> cond_fst(fst, mapper);
+
+    vector<VLabel> hyp;
+    vector<float> scores;
+    Search()(cond_fst, hyp, scores);
+
+    size_t distance = hamming_distance(base_hyp, hyp);
+
+    expected_num_changes += to_float<Weight>(it->second) * static_cast<float>(distance);
+  }
+
+  return expected_num_changes;
+}
+
 
 }
 

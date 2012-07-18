@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 #include <cerrno>
+#include <cmath>
 
 namespace openlat {
 
@@ -114,6 +115,16 @@ template<class T> unsigned int edit_distance(const T& s1, const T& s2) {
   return d[len1][len2];
 }
 
+template<class T> unsigned int hamming_distance(const T& s1, const T& s2) {
+  assert_bt(s1.size() == s2.size(), "Sizes do not match");
+
+  size_t distance = 0;
+  for (size_t i = 0; i < s1.size(); i++) {
+    if (s1[i] != s2[i]) distance++;
+  }
+  return distance;
+}
+
 template <typename T>
 T convert_string(const string& text) {
   T ret;
@@ -190,6 +201,10 @@ double diffclock(T clock1, T clock2) {
   return diffms;
 }
 
+template <typename W>
+float to_float(const W& weight) {
+  return exp(-weight.Value());
+}
 
 }
 

@@ -174,7 +174,7 @@ BOOST_AUTO_TEST_CASE(oracle)
   vector<const MutableFst<LogArc> *> fsts(1, &fst);
   vector<vector<VLabel> > refs(1, ref);
 
-  LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectation<LogArc, LogConstraintFilter> > system(fsts);
+  LocalSystem<LogArc, LogConstraintFilter, RecomputeViterbi<LogArc, LogConstraintFilter>, sort_pool_by_label> system(fsts);
   Oracle oracle(refs, fst.InputSymbols(), fst.OutputSymbols());
 
   oracle.evaluate(&system);

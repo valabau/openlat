@@ -65,21 +65,30 @@ float ShortestPath<fst::LogArc>(const fst::Fst<fst::LogArc> &fst, vector<VLabel>
   return ShortestPath<fst::StdArc>(_fst, hyp, scores);
 }
 
-
-
 /**
  * structure function to sort probs
  */
 template <class Arc>
 struct sort_by_score {
   size_t operator()(const std::pair<typename Arc::Label, typename Arc::Weight>& __x, const std::pair<typename Arc::Label, typename Arc::Weight>& __y) const {
-    return __x->second.Value() < __y->second.Value();
+    return __x.second.Value() > __y.second.Value();
+  }
+};
+
+
+/**
+ * Wrapper to use shortest path as template arguments
+ */
+template<class Arc>
+struct ShortestPathFunc {
+  float operator()(const fst::Fst<fst::LogArc> &fst, vector<VLabel> &hyp, vector<float> &scores) const {
+    return ShortestPath<Arc>(fst, hyp, scores);
   }
 };
 
 
 template <class Arc>
-float ShortestHammingPath(const fst::Fst<Arc> &fst, vector<VLabel> &hyp, vector<float> &scores) {
+void ExpectedHammingProbs(const fst::Fst<Arc> &fst, std::vector< std::map<typename Arc::Label, typename Arc::Weight> >& probs) {
   typedef typename Arc::Label Label;
   typedef typename Arc::StateId StateId;
   typedef typename Arc::Weight Weight;
@@ -90,19 +99,17 @@ float ShortestHammingPath(const fst::Fst<Arc> &fst, vector<VLabel> &hyp, vector<
   fst::ShortestDistance(fst, &forward);
   fst::ShortestDistance(fst, &backward, true);
 
-  std::vector< std::map<Label, Weight> > probs;
-
   std::vector<size_t> position(NumStates(fst), static_cast<size_t>(-1));
   position[fst.Start()] = 0;
 
-  // accumulate the posterior probabilities 
+  // accumulate the posterior probabilities
   for (fst::StateIterator<fst::Fst<Arc> > siter(fst); !siter.Done(); siter.Next()) {
     StateId s = siter.Value();
-    
 
-    // ShortestDistance does not fill states that are not reachable at the end of the vector 
-    if (s >= forward.size()) break; 
-  
+
+    // ShortestDistance does not fill states that are not reachable at the end of the vector
+    if (static_cast<size_t>(s) >= forward.size()) break;
+
 
     if (position[s] != static_cast<size_t>(-1)) {
       const size_t pos = position[s];
@@ -117,8 +124,8 @@ float ShortestHammingPath(const fst::Fst<Arc> &fst, vector<VLabel> &hyp, vector<
 
         if (backward[arc.nextstate] != Weight::Zero() and arc.weight != Weight::Zero()) {
           typename std::map<Label, Weight>::iterator it = probs[pos].find(arc.olabel);
-          if (it == probs.end()) {
-            it = probs.insert(make_pair(arc.olabel, Weight::Zero())).first;
+          if (it == probs[pos].end()) {
+            it = probs[pos].insert(make_pair(arc.olabel, Weight::Zero())).first;
           }
           it->second = fst::Plus(it->second, fst::Divide(fst::Times(fst::Times(forward[s], arc.weight), backward[arc.nextstate]), backward[fst.Start()]) );
         }
@@ -126,22 +133,47 @@ float ShortestHammingPath(const fst::Fst<Arc> &fst, vector<VLabel> &hyp, vector<
     }
   }
 
+}
+
+
+
+template <class Arc>
+float ShortestHammingPath(const fst::Fst<Arc> &fst, vector<VLabel> &hyp, vector<float> &scores) {
+  typedef typename Arc::Label Label;
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+
+  std::vector< std::map<Label, Weight> > probs;
+  ExpectedHammingProbs(fst, probs);
+
   hyp.clear();
   hyp.resize(probs.size());
   scores.clear();
   scores.resize(probs.size());
 
-  Weight expected_num_errors = .0f;
+  Weight expected_num_ok = Weight::Zero();
   for (size_t i = 0; i < probs.size(); i++) {
-    typename std::map<Label, Weight>::iterator it = std::max(probs[i].begin(), probs[i].end(), sort_by_score<Arc>());
+    typename std::map<Label, Weight>::iterator it = std::max_element(probs[i].begin(), probs[i].end(), sort_by_score<Arc>());
     hyp[i] = it->first;
     scores[i] = - it->second.Value();
-    expected_num_errors = fst::Plus( expected_num_errors, fst::Minus(Weight::One, it->second) );
+    expected_num_ok = fst::Plus(expected_num_ok, it->second);
   }
 
-  return - expected_num_errors.Value();
+  //XXX: convert from expected accuracy to expected errors
+  return to_float(expected_num_ok);
 
 }
+
+/**
+ * Wrapper to use shortest path as template arguments
+ */
+template<class Arc>
+struct ShortestHammingPathFunc {
+  float operator()(const fst::Fst<fst::LogArc> &fst, vector<VLabel> &hyp, vector<float> &scores) const {
+    return ShortestPath<Arc>(fst, hyp, scores);
+  }
+};
+
 
 
 }  // namespace openlat

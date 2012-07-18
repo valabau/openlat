@@ -247,7 +247,7 @@ public:
   float error(int count, int total) { return 100.0*static_cast<float>(count)/static_cast<float>(total); }
 
   /** print error rates and other statistics */
-  void printStats(size_t s, const Query& query) {
+  void printStats(size_t s, const Query& query, const std::vector<VLabel>& ) {
     int pos = (s == 0)?-1:((s-1) / refs.size());
     int ls = (query.label.sample == size_t(-1))?-1:query.label.sample;
 
@@ -266,6 +266,19 @@ public:
     std::cerr << " " << error(e_c, n_labels)    << " (" << e_c << ")";
     std::cerr << " " << error(e_k, refs.size()) << " (" << e_k << ")";
     std::cerr << " " << diffclock(end_time, start_time)/1000 << std::endl;
+
+
+//    if (osymbols == 0)  {
+//      for (std::vector<VLabel>::const_iterator it = hyp.begin(); it < hyp.end(); ++it) {
+//        std::cerr << *it << " ";
+//      }
+//    }
+//    else {
+//      for (std::vector<VLabel>::const_iterator it = hyp.begin(); it < hyp.end(); ++it) {
+//        std::cerr << osymbols->Find(*it) << " ";
+//      }
+//    }
+//    std::cerr << "\n";
 
     std::map<size_t, size_t> histogram;
     for (size_t i = 0; i < n_errors.size(); i++) {
@@ -288,12 +301,12 @@ public:
       Query query(s, fst::SymbolTable::kNoSymbol, fst::SymbolTable::kNoSymbol);
       vector<VLabel> hyp;
       system->fixLabel(query, hyp);
-      n_errors[query.label.sample] = edit_distance(refs[query.label.sample], hyp);
+      n_errors[query.label.sample] = hamming_distance(refs[query.label.sample], hyp);
 //      if (n_errors[query.label.sample] > 0) {
-      cout << "filt " << query.label.sample << " " << query.label.label << " " << n_errors[query.label.sample] << "\n";
+//      cout << "filt " << query.label.sample << " " << query.label.label << " " << n_errors[query.label.sample] << "\n";
 //      }
     }
-    printStats(0, Query());
+    printStats(0, Query(), std::vector<VLabel>());
 
     // start interactive labeling until total labels are queried
     for (size_t s = 0; s < n_labels; s++) {
@@ -301,28 +314,35 @@ public:
       Query query = system->askLabel();
       // cerr << "query: " << query.label.sample << " " << query.label.label << " " << query.hyp << " is " << refs[query.label.sample][query.label.label] << "\n";
 
+      std::vector<VLabel> hyp;
+
       // if the query is wrong
       if (query.hyp != refs[query.label.sample][query.label.label]) {
-//        const vector<VLabel> &ref = refs[query.label.sample];
         c++; // increment the number of corrections made
         query.hyp = refs[query.label.sample][query.label.label]; // assign the correct hyp
-        vector<VLabel> hyp;
-        system->fixLabel(query, hyp); // fix the hypothesis in the system
-        // recompute the number of errors for the given sample
-        size_t dist = edit_distance(refs[query.label.sample], hyp);
-        cout << "filt " << query.label.sample << " " << query.label.label << " " << n_errors[query.label.sample] << "\n";
-//        size_t n_err = n_errors[query.label.sample];
-        n_errors[query.label.sample] = dist;
       }
-      // if the query is right then accept the query
-      else {
-//        system->acceptLabel(query);
-        vector<VLabel> hyp;
-        system->fixLabel(query, hyp); // this is necessary to acknowledge the system
-        cout << "filt " << query.label.sample << " " << query.label.label << " " << n_errors[query.label.sample] << "\n";
-      }
+
+      // fix the hypothesis in the system
+      // this is necessary to acknowledge the system even though hyp is correct
+      system->fixLabel(query, hyp); 
+
+      // recompute the number of errors for the given sample
+      size_t dist = hamming_distance(refs[query.label.sample], hyp);
+//      if (dist > n_errors[query.label.sample] or hyp[query.label.label] != refs[query.label.sample][query.label.label]) {
+//        cout << "wrong " << query.label.sample << " " << query.label.label << " " << n_errors[query.label.sample] << "\n";
+//      }
+//      size_t n_err = n_errors[query.label.sample];
+      n_errors[query.label.sample] = dist;
+
       // print the updated stats
-      printStats(s + 1, query);
+      printStats(s + 1, query ,hyp);
+//      if (query.label.label == 8) {
+//        cerr << "R ";
+//        for (std::vector<VLabel>::const_iterator it = refs[query.label.sample].begin(); it < refs[query.label.sample].end(); ++it) {
+//          std::cerr << osymbols->Find(*it) << " ";
+//        }
+//        cerr << "\n";
+//      }
     }
   }
 };
@@ -374,6 +394,11 @@ public:
   /** Recompute scores using the Recompute template argument */
   virtual void recomputeScores(const Query &query, vector<VLabel> &hyp, vector<float> &scores) {
     recompute(*fsts[query.label.sample], constraints[query.label.sample], assigned_labels[query.label.sample], hyp, scores);
+
+    std::cerr << "scores =";
+    for (size_t i = 0; i < scores.size(); i++) std::cerr << " " << scores[i];
+    std::cerr << "\n";
+
   }
 
   /** accept query as a correct solution */
@@ -439,6 +464,15 @@ struct EntropySampleScorer {
 };
 
 template <class Arc>
+struct ExpectedErrorSampleScorer {
+  float operator()(const fst::Fst<Arc> &fst) {
+    std::vector<typename Arc::Label> hyp;
+    std::vector<float> scores;
+    return ShortestHammingPath(fst, hyp, scores);
+  }
+};
+
+template <class Arc>
 struct MaxMutualInformationSampleScorer {
   float operator()(const fst::Fst<Arc> &fst) {
     float mutual_information = 0;
@@ -494,7 +528,7 @@ public:
     }
     // we need to push back the sample pointers in another loop since
     // in the previous loop a vector resize might reallocate the memory
-    // and this change the addresses
+    // and this changes the addresses
     sample_scores.resize(sample_scores_orig.size());
     for (size_t n = 0; n < Base::fsts.size(); n++) {
       sample_scores[n] = &sample_scores_orig[n];
@@ -765,116 +799,120 @@ struct RecomputeSequentialExpectation {
 };
 
 
-template <class Arc, class Filter>
-struct RecomputeExpectation {
-  fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) { return fst.Copy(); }
-  void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
+template <class Arc>
+struct IdentityLabelScorer {
+  void operator()(const fst::Fst<Arc> &, const vector<VLabel> &hyp, vector<float> &scores) {
+    for (size_t l = 0; l < hyp.size(); l++) {
+      scores[l] = -scores[l];
+    }
+  }
+};
+
+template <class Arc>
+struct EntropyLabelScorer {
+  void operator()(const fst::Fst<Arc> &fst, const vector<VLabel> &hyp, vector<float> &scores) {
+    for (size_t l = 0; l < hyp.size(); l++) {
+      scores[l] = Entropy<Arc>(fst, l+1);
+    }
+  }
+};
+
+template <class Arc>
+struct MutualInformationLabelScorer {
+  void operator()(const fst::Fst<Arc> &fst, const vector<VLabel> &hyp, vector<float> &scores) {
+    for (size_t l = 0; l < hyp.size(); l++) {
+      scores[l] = MutualInformation<Arc>(fst, l+1);
+    }
+  }
+};
+
+
+template <class Arc>
+struct ConditionalExpectedAccuracyLabelScorer {
+  void operator()(const fst::Fst<Arc> &fst, const vector<VLabel> &hyp, vector<float> &scores) {
+    for (size_t l = 0; l < hyp.size(); l++) {
+      scores[l] = -ConditionalExpectedAccuracy<Arc>(fst, l+1);
+    }
+  }
+};
+
+template <class Arc>
+struct ExpectedHammingLabelScorer {
+  void operator()(const fst::Fst<Arc> &fst, const vector<VLabel> &hyp, vector<float> &scores) {
+    typedef typename std::map<typename Arc::Label, typename Arc::Weight> PROBS;
+    std::vector<PROBS> probs;
+    ExpectedHammingProbs(fst, probs);
+
+    for (size_t l = 0; l < hyp.size(); l++) {
+      typename PROBS::const_iterator it = probs[l].find(hyp[l]);
+      if (it == probs[l].end()) scores[l] = 0;
+      else scores[l] = to_float(it->second);
+    }
+  }
+};
+
+
+template <class Arc, typename Search, bool the_more_changes_the_better = false>
+struct ConditionalExpectedNumChangesLabelScorer {
+  void operator()(const fst::Fst<Arc> &fst, const vector<VLabel> &hyp, vector<float> &scores) {
+    for (size_t l = 0; l < hyp.size(); l++) {
+      scores[l] = ConditionalExpectedNumChanges<Arc, Search>(fst, l+1);
+    }
+    if (the_more_changes_the_better) {
+      for (size_t l = 0; l < hyp.size(); l++) scores[l] = -scores[l];
+    }
+  }
+};
+
+
+template <class Arc, class Filter, typename LabelScorer = IdentityLabelScorer<Arc>, bool normalize = true>
+struct RecomputeExpectedHamming {
+  fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) {
+    if (normalize) {
+      fst::MutableFst<Arc> *nfst = new fst::VectorFst<Arc>();
+      DeterminizeAndNormalize(fst, nfst);
+      return nfst;
+    }
+    else {
+      fst::MutableFst<Arc> *nfst = new fst::VectorFst<Arc>(fst);
+      return nfst;
+    }
+  }
+  void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>& , vector<VLabel> &hyp, vector<float> &scores) {
     typedef WeightToZeroFilterMapper<Arc, Filter> Mapper;
 
-    // reset scores and hyp
-    scores.clear();
-    scores.resize(assigned_labels.size(), -Arc::Weight::Zero().Value());
-    hyp.resize(assigned_labels.size());
-    float max_score = -Arc::Weight::Zero().Value();
+    Mapper mapper(filter);
+    fst::MapFst<Arc, Arc, Mapper> cond_fst(fst, mapper);
 
-    // obtain the available members for each label
-    std::vector< std::set<typename Arc::Label> > members;
-    GetOutputSymbols(fst, &members);
+    ShortestHammingPath(cond_fst, hyp, scores);     
 
-    // for each unassigned label
-    for (size_t label = 0; label < assigned_labels.size(); label++) {
-      if (not assigned_labels[label]) {
-
-        // reset the best hyp
-        vector<VLabel> best_hyp(assigned_labels.size(), fst::SymbolTable::kNoSymbol);
-        float max_member_score = Arc::Weight::Zero().Value();
-        // for each possible member for this label
-        for (typename std::set<typename Arc::Label>::const_iterator mem_it = members[label].begin();
-            mem_it != members[label].end(); ++mem_it)
-        {
-          size_t member = *mem_it;
-
-          // build a fst where (label, member) is selected
-          // and some arcs are disabled according to mapper
-//          Filter filter(label, member);
-//          Mapper mapper(filter, dead_state);
-//          fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
-
-//          float score = -FstMass(_fst);
-
-          // accumulate the score for this label
-//          scores[label] = add_log(scores[label], score);
-//          if (score > max_member_score) {
-//            max_member_score = score;
-//            copy(lhyp.begin(), lhyp.end(), best_hyp.begin());
-//          }
-        }
-
-
-        // if the score for this label is better than for the rest, update
-        if (scores[label] > max_score) {
-          max_score = scores[label];
-          copy(best_hyp.begin(), best_hyp.end(), hyp.begin());
-        }
-      } // if not assigned label
-    }
+    LabelScorer()(cond_fst, hyp, scores);
 
   }
 };
 
-template <class Arc, class Filter>
-struct RecomputePathExpectation {
-  fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) { return fst.Copy(); }
-  void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>& assigned_labels, vector<VLabel> &hyp, vector<float> &scores) {
+template <class Arc, class Filter, typename LabelScorer = IdentityLabelScorer<Arc>, bool normalize = true>
+struct RecomputeViterbi {
+  fst::MutableFst<Arc> *prepare(const fst::MutableFst<Arc> &fst) {
+    if (normalize) {
+      fst::MutableFst<Arc> *nfst = new fst::VectorFst<Arc>();
+      DeterminizeAndNormalize(fst, nfst);
+      return nfst;
+    }
+    else {
+      fst::MutableFst<Arc> *nfst = new fst::VectorFst<Arc>(fst);
+      return nfst;
+    }
+  }
+  void operator()(const fst::Fst<Arc> &fst, const Filter &filter, const vector<bool>& , vector<VLabel> &hyp, vector<float> &scores) {
     typedef WeightToZeroFilterMapper<Arc, Filter> Mapper;
 
-    // reset scores and hyp
-    scores.clear();
-    scores.resize(assigned_labels.size(), -Arc::Weight::Zero().Value());
-    hyp.resize(assigned_labels.size());
-    float max_score = -Arc::Weight::Zero().Value();
+    Mapper mapper(filter);
+    fst::MapFst<Arc, Arc, Mapper> cond_fst(fst, mapper);
 
-    // obtain the available members for each label
-    std::vector< std::set<typename Arc::Label> > members;
-    GetOutputSymbols(fst, &members);
+    ShortestPath(cond_fst, hyp, scores);
 
-    // for each unassigned label
-    for (size_t label = 0; label < assigned_labels.size(); label++) {
-      if (not assigned_labels[label]) {
-
-        // reset the best hyp
-        vector<VLabel> best_hyp(assigned_labels.size(), fst::SymbolTable::kNoSymbol);
-        float max_member_score = Arc::Weight::Zero().Value();
-        // for each possible member for this label
-        for (typename std::set<typename Arc::Label>::const_iterator mem_it = members[label].begin();
-            mem_it != members[label].end(); ++mem_it)
-        {
-          size_t member = *mem_it;
-
-          // build a fst where (label, member) is selected
-          // and some arcs are disabled according to mapper
-//          Filter filter(label, member);
-//          Mapper mapper(filter, dead_state);
-//          fst::MapFst<Arc, Arc, Mapper> _fst(fst, mapper);
-
-//          float score = -FstMass(_fst);
-
-          // accumulate the score for this label
-//          scores[label] = add_log(scores[label], score);
-//          if (score > max_member_score) {
-//            max_member_score = score;
-//            copy(lhyp.begin(), lhyp.end(), best_hyp.begin());
-//          }
-        }
-
-
-        // if the score for this label is better than for the rest, update
-        if (scores[label] > max_score) {
-          max_score = scores[label];
-          copy(best_hyp.begin(), best_hyp.end(), hyp.begin());
-        }
-      } // if not assigned label
-    }
+    LabelScorer()(cond_fst, hyp, scores);
 
   }
 };
