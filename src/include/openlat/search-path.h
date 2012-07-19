@@ -29,11 +29,12 @@ namespace openlat {
 template<class Arc>
 float ShortestPath(const fst::Fst<Arc> &fst, vector<VLabel> &hyp, vector<float> &scores) {
   typedef fst::VectorFst<Arc> Fst;
+  typedef typename Arc::Weight Weight;
   Fst *best = new Fst();
 
   ShortestPath(fst, best);
 
-  float score = 0;
+  Weight score = Weight::One();
   hyp.clear();
   scores.clear();
 
@@ -49,6 +50,7 @@ float ShortestPath(const fst::Fst<Arc> &fst, vector<VLabel> &hyp, vector<float> 
       // cerr << "arc: " << arc.ilabel << " " << arc.olabel << " " << arc.weight.Value()  << " " << arc.nextstate << "\n";
       hyp.push_back(arc.olabel);
       scores.push_back(arc.weight.Value());
+      score = fst::Times(score, arc.weight);
       nextstate = arc.nextstate;
     }
     state = nextstate;
@@ -56,7 +58,8 @@ float ShortestPath(const fst::Fst<Arc> &fst, vector<VLabel> &hyp, vector<float> 
 
   delete best;
 
-  return score;
+
+  return -score.Value();
 }
 
 template<>

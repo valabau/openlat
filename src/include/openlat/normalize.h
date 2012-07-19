@@ -301,6 +301,31 @@ float ConditionalExpectedAccuracy(const fst::Fst<Arc> &fst, typename Arc::Label 
   return expected_accuracy;
 }
 
+template<class Arc>
+float ConditionalExpectedShortestPath(const fst::Fst<Arc> &fst, typename Arc::Label ilabel) {
+  typedef typename Arc::Label Label;
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+  typedef WeightToZeroFilterMapper<Arc, QueryFilter<Arc> > Mapper;
+
+  std::map<Label, Weight> probs;
+  PositionProbabilities(fst, ilabel, probs);
+
+  // accumulate mutual information
+  float expected_accuracy = .0;
+  for (typename std::map<Label, Weight>::const_iterator it = probs.begin(); it != probs.end(); ++it) {
+    QueryFilter<Arc> filter(ilabel, it->first);
+    Mapper mapper(filter);
+    fst::MapFst<Arc, Arc, Mapper> cond_fst(fst, mapper);
+
+    vector<VLabel> hyp;
+    vector<float> scores;
+    expected_accuracy += to_float<Weight>(it->second) * ShortestPath(cond_fst, hyp, scores);
+  }
+
+  return expected_accuracy;
+}
+
 template<class Arc, typename Search>
 float ConditionalExpectedNumChanges(const fst::Fst<Arc> &fst, typename Arc::Label ilabel) {
   typedef typename Arc::Label Label;

@@ -102,12 +102,6 @@ int main (int argc, char *argv[]) {
   else if (method == "sequential-symbol") {
     system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
   }
-  else if (method == "sequential-viterbi") {
-    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeViterbi<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
-  }
-  else if (method == "sequential-hamming") {
-    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
-  }
   else if (method == "sorted-viterbi") {
     system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeViterbi<LogArc, LogConstraintFilter>, sort_pool_by_label, EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
   }
@@ -171,6 +165,15 @@ int main (int argc, char *argv[]) {
     system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter> >(fsts);
   }
 
+  /* Pasive systems. */
+  else if (method == "sequential-viterbi") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeViterbi<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
+  }
+  else if (method == "sequential-hamming") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter>, sort_pool_by_label>(fsts);
+  }
+
+
   /* Active systems. Query strategies at structure level.  */
   else if (method == "active-structure-random") {
     system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label,
@@ -187,6 +190,86 @@ int main (int argc, char *argv[]) {
   else if (method == "active-structure-error") {
     system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label,
                              ExpectedErrorSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+
+
+  /* Active systems. Query strategies at label level.  */
+  else if (method == "active-label-random") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             RandomLabelScorer<LogArc> >,       sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-entropy") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             EntropyLabelScorer<LogArc> >,       sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-least-confident") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             IdentityLabelScorer<LogArc> >,       sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-viterbi-error") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             ConditionalExpectedShortestPathLabelScorer<LogArc> >, sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-hamming-error") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             ConditionalExpectedAccuracyLabelScorer<LogArc> >, sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-mutual-information") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             MutualInformationLabelScorer<LogArc> >, sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-num-changes") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             ConditionalExpectedNumChangesLabelScorer<LogArc, ShortestPathFunc<LogArc> > >, sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-num-changes-hamming") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             ConditionalExpectedNumChangesLabelScorer<LogArc, ShortestHammingPathFunc<LogArc> > >, sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+
+  /* Active systems. Query strategies at label level. More is less */
+  else if (method == "active-label-entropy-m") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             EntropyLabelScorer<LogArc, false> >,       sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-least-confident-m") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             IdentityLabelScorer<LogArc, false> >,       sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-viterbi-error-m") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             ConditionalExpectedShortestPathLabelScorer<LogArc, false> >, sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-hamming-error-m") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             ConditionalExpectedAccuracyLabelScorer<LogArc, false> >, sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-mutual-information-m") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             MutualInformationLabelScorer<LogArc, false> >, sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-num-changes-m") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             ConditionalExpectedNumChangesLabelScorer<LogArc, ShortestPathFunc<LogArc>, false> >, sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-label-num-changes-hamming-m") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeExpectedHamming<LogArc, LogConstraintFilter,
+                             ConditionalExpectedNumChangesLabelScorer<LogArc, ShortestHammingPathFunc<LogArc>, false> >, sort_pool_by_score,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
   }
 
 

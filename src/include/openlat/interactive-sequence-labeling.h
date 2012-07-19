@@ -329,20 +329,21 @@ public:
 
       // recompute the number of errors for the given sample
       size_t dist = hamming_distance(refs[query.label.sample], hyp);
+      int changes = static_cast<int>(n_errors[query.label.sample]) - static_cast<int>(dist);
 
       // print the updated stats
       printStats(s + 1, query ,hyp);
 
       if (n_errors[query.label.sample] > 0) {
         if (is_wrong) {
-          cerr << "selection: good " << (n_errors[query.label.sample] - dist) << "\n";
+          cerr << "selection: good " << changes << "\n";
         }
         else {
-          cerr << "selection: bad " << (n_errors[query.label.sample] - dist) << "\n";
+          cerr << "selection: bad " << changes << "\n";
         }
       }
       else {
-        cerr << "selection: none " << (n_errors[query.label.sample] - dist) << "\n";
+        cerr << "selection: none " << changes << "\n";
       }
 
 //      if (dist > n_errors[query.label.sample] or hyp[query.label.label] != refs[query.label.sample][query.label.label]) {
@@ -824,46 +825,70 @@ struct RecomputeSequentialExpectation {
 };
 
 
-template <class Arc>
+template <class Arc, bool minus = true>
 struct IdentityLabelScorer {
   void operator()(const fst::Fst<Arc> &, const vector<VLabel> &hyp, vector<float> &scores) {
+    const float sign = (minus)?1:-1;
     for (size_t l = 0; l < hyp.size(); l++) {
-      scores[l] = -scores[l];
+      scores[l] = sign * scores[l];
     }
   }
 };
 
 template <class Arc>
+struct RandomLabelScorer {
+  void operator()(const fst::Fst<Arc> &, const vector<VLabel> &hyp, vector<float> &scores) {
+    for (size_t l = 0; l < hyp.size(); l++) {
+      scores[l] = log(static_cast<float>(rand())/static_cast<float>(RAND_MAX));
+    }
+  }
+};
+
+template <class Arc, bool minus = true>
 struct EntropyLabelScorer {
   void operator()(const fst::Fst<Arc> &fst, const vector<VLabel> &hyp, vector<float> &scores) {
+    const float sign = (minus)?-1:1;
     for (size_t l = 0; l < hyp.size(); l++) {
-      scores[l] = Entropy<Arc>(fst, l+1);
+      scores[l] = sign*ConditionalEntropy<Arc>(fst, l+1);
     }
   }
 };
 
-template <class Arc>
+template <class Arc, bool minus = true>
 struct MutualInformationLabelScorer {
   void operator()(const fst::Fst<Arc> &fst, const vector<VLabel> &hyp, vector<float> &scores) {
+    const float sign = (minus)?-1:1;
     for (size_t l = 0; l < hyp.size(); l++) {
-      scores[l] = MutualInformation<Arc>(fst, l+1);
+      scores[l] = sign*MutualInformation<Arc>(fst, l+1);
     }
   }
 };
 
 
-template <class Arc>
+template <class Arc, bool minus = true>
 struct ConditionalExpectedAccuracyLabelScorer {
   void operator()(const fst::Fst<Arc> &fst, const vector<VLabel> &hyp, vector<float> &scores) {
+    const float sign = (minus)?1:-1;
     for (size_t l = 0; l < hyp.size(); l++) {
-      scores[l] = -ConditionalExpectedAccuracy<Arc>(fst, l+1);
+      scores[l] = sign*ConditionalExpectedAccuracy<Arc>(fst, l+1);
     }
   }
 };
 
-template <class Arc>
+template <class Arc, bool minus = true>
+struct ConditionalExpectedShortestPathLabelScorer {
+  void operator()(const fst::Fst<Arc> &fst, const vector<VLabel> &hyp, vector<float> &scores) {
+    const float sign = (minus)?-1:1;
+    for (size_t l = 0; l < hyp.size(); l++) {
+      scores[l] = sign*ConditionalExpectedShortestPath<Arc>(fst, l+1);
+    }
+  }
+};
+
+template <class Arc, bool minus = true>
 struct ExpectedHammingLabelScorer {
   void operator()(const fst::Fst<Arc> &fst, const vector<VLabel> &hyp, vector<float> &scores) {
+    const float sign = (minus)?-1:1;
     typedef typename std::map<typename Arc::Label, typename Arc::Weight> PROBS;
     std::vector<PROBS> probs;
     ExpectedHammingProbs(fst, probs);
@@ -871,20 +896,18 @@ struct ExpectedHammingLabelScorer {
     for (size_t l = 0; l < hyp.size(); l++) {
       typename PROBS::const_iterator it = probs[l].find(hyp[l]);
       if (it == probs[l].end()) scores[l] = 0;
-      else scores[l] = to_float(it->second);
+      else scores[l] = sign*to_float(it->second);
     }
   }
 };
 
 
-template <class Arc, typename Search, bool the_more_changes_the_better = false>
+template <class Arc, typename Search, bool minus = true>
 struct ConditionalExpectedNumChangesLabelScorer {
   void operator()(const fst::Fst<Arc> &fst, const vector<VLabel> &hyp, vector<float> &scores) {
+    const float sign = (minus)?1:-1;
     for (size_t l = 0; l < hyp.size(); l++) {
-      scores[l] = ConditionalExpectedNumChanges<Arc, Search>(fst, l+1);
-    }
-    if (the_more_changes_the_better) {
-      for (size_t l = 0; l < hyp.size(); l++) scores[l] = -scores[l];
+      scores[l] = sign*ConditionalExpectedNumChanges<Arc, Search>(fst, l+1);
     }
   }
 };
