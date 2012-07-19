@@ -309,7 +309,7 @@ public:
     printStats(0, Query(), std::vector<VLabel>());
 
     // start interactive labeling until total labels are queried
-    for (size_t s = 0; s < n_labels; s++) {
+    for (size_t s = 0; s < n_labels and e_c > 0; s++) {
       // ask the system for the next query
       Query query = system->askLabel();
       // cerr << "query: " << query.label.sample << " " << query.label.label << " " << query.hyp << " is " << refs[query.label.sample][query.label.label] << "\n";
