@@ -171,6 +171,25 @@ int main (int argc, char *argv[]) {
     system = new TraversalLocalSystem<LogArc, LogConstraintFilter, RecomputeSequential<LogArc, LogConstraintFilter> >(fsts);
   }
 
+  /* Active systems. Query strategies at structure level.  */
+  else if (method == "active-structure-random") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label,
+                             RandomSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-structure-entropy") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label,
+                             EntropySampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-structure-least-confident") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+  else if (method == "active-structure-error") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label,
+                             ExpectedErrorSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
+
+
   assert_bt(system != 0, "Invalid method name");
 
   const SymbolTable *isymbols = (*fsts.begin())->InputSymbols();

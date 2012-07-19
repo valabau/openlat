@@ -247,7 +247,7 @@ public:
   float error(int count, int total) { return 100.0*static_cast<float>(count)/static_cast<float>(total); }
 
   /** print error rates and other statistics */
-  void printStats(size_t s, const Query& query, const std::vector<VLabel>& ) {
+  void printStats(size_t s, const Query& query, const std::vector<VLabel>& hyp) {
     int pos = (s == 0)?-1:((s-1) / refs.size());
     int ls = (query.label.sample == size_t(-1))?-1:query.label.sample;
 
@@ -268,17 +268,17 @@ public:
     std::cerr << " " << diffclock(end_time, start_time)/1000 << std::endl;
 
 
-//    if (osymbols == 0)  {
-//      for (std::vector<VLabel>::const_iterator it = hyp.begin(); it < hyp.end(); ++it) {
-//        std::cerr << *it << " ";
-//      }
-//    }
-//    else {
-//      for (std::vector<VLabel>::const_iterator it = hyp.begin(); it < hyp.end(); ++it) {
-//        std::cerr << osymbols->Find(*it) << " ";
-//      }
-//    }
-//    std::cerr << "\n";
+    if (osymbols == 0)  {
+      for (std::vector<VLabel>::const_iterator it = hyp.begin(); it < hyp.end(); ++it) {
+        std::cerr << *it << " ";
+      }
+    }
+    else {
+      for (std::vector<VLabel>::const_iterator it = hyp.begin(); it < hyp.end(); ++it) {
+        std::cerr << osymbols->Find(*it) << " ";
+      }
+    }
+    std::cerr << "\n";
 
     std::map<size_t, size_t> histogram;
     for (size_t i = 0; i < n_errors.size(); i++) {
@@ -303,7 +303,7 @@ public:
       system->fixLabel(query, hyp);
       n_errors[query.label.sample] = hamming_distance(refs[query.label.sample], hyp);
 //      if (n_errors[query.label.sample] > 0) {
-//      cout << "filt " << query.label.sample << " " << query.label.label << " " << n_errors[query.label.sample] << "\n";
+      cout << "n_errors " << query.label.sample << " " << n_errors[query.label.sample] << "\n";
 //      }
     }
     printStats(0, Query(), std::vector<VLabel>());
@@ -317,7 +317,8 @@ public:
       std::vector<VLabel> hyp;
 
       // if the query is wrong
-      if (query.hyp != refs[query.label.sample][query.label.label]) {
+      bool is_wrong = (query.hyp != refs[query.label.sample][query.label.label]);
+      if (is_wrong) {
         c++; // increment the number of corrections made
         query.hyp = refs[query.label.sample][query.label.label]; // assign the correct hyp
       }
@@ -328,14 +329,29 @@ public:
 
       // recompute the number of errors for the given sample
       size_t dist = hamming_distance(refs[query.label.sample], hyp);
+
+      // print the updated stats
+      printStats(s + 1, query ,hyp);
+
+      if (n_errors[query.label.sample] > 0) {
+        if (is_wrong) {
+          cerr << "selection: good " << (n_errors[query.label.sample] - dist) << "\n";
+        }
+        else {
+          cerr << "selection: bad " << (n_errors[query.label.sample] - dist) << "\n";
+        }
+      }
+      else {
+        cerr << "selection: none " << (n_errors[query.label.sample] - dist) << "\n";
+      }
+
 //      if (dist > n_errors[query.label.sample] or hyp[query.label.label] != refs[query.label.sample][query.label.label]) {
 //        cout << "wrong " << query.label.sample << " " << query.label.label << " " << n_errors[query.label.sample] << "\n";
 //      }
 //      size_t n_err = n_errors[query.label.sample];
       n_errors[query.label.sample] = dist;
 
-      // print the updated stats
-      printStats(s + 1, query ,hyp);
+
 //      if (query.label.label == 8) {
 //        cerr << "R ";
 //        for (std::vector<VLabel>::const_iterator it = refs[query.label.sample].begin(); it < refs[query.label.sample].end(); ++it) {
@@ -473,6 +489,15 @@ struct ExpectedErrorSampleScorer {
 };
 
 template <class Arc>
+struct LeastConfidentSampleScorer {
+  float operator()(const fst::Fst<Arc> &fst) {
+    std::vector<typename Arc::Label> hyp;
+    std::vector<float> scores;
+    return ShortestPath(fst, hyp, scores);
+  }
+};
+
+template <class Arc>
 struct MaxMutualInformationSampleScorer {
   float operator()(const fst::Fst<Arc> &fst) {
     float mutual_information = 0;
@@ -523,7 +548,7 @@ public:
     }
     for (size_t n = 0; n < Base::fsts.size(); n++) {
       float score = SampleScorer()(*Base::fsts[n]);
-//      cout << "entropy2 " << n << " " << entropy << "\n";
+      cout << "structure cost: " << n << " " << score << "\n";
       sample_scores_orig.push_back(SampleScore(n, score));
     }
     // we need to push back the sample pointers in another loop since
