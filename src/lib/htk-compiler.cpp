@@ -44,7 +44,41 @@ fst::MutableFst<fst::LogArc>* ReadHtkLogArc(std::istream &istrm, const std::stri
 fst::MutableFst<fst::StdArc>* ReadHtkStdArc(std::istream &istrm, const std::string &source) { return ReadHtk<fst::StdArc>(istrm, source); }
 fst::MutableFst<LogLinearArc>* ReadHtkLogLinearArc(std::istream &istrm, const std::string &source) { return ReadHtk<LogLinearArc>(istrm, source); }
 
+template <typename Arc>
+Lattice<Arc>* ReadHtkLattice(std::istream &istrm, const std::string &source) {
+  htk::HtkContext context(istrm, source);
+  htk::parser parser(&context);
+
+  int status = parser.parse();
+
+  if (status == 1) LOG(FATAL) << " Parsing '" << source << "' failed because of invalid input ";
+  else if (status == 2) LOG(FATAL) << " Parsing '" << source << "' failed due to memory exhaustion ";
+
+  return context.htk.CreateLattice<Arc>();
+}
 
 
+Lattice<fst::LogArc>* ReadHtkLogLattice(std::istream &istrm, const std::string &source) { return ReadHtkLattice<fst::LogArc>(istrm, source); }
+Lattice<fst::StdArc>* ReadHtkStdLattice(std::istream &istrm, const std::string &source) { return ReadHtkLattice<fst::StdArc>(istrm, source); }
+Lattice<LogLinearArc>* ReadHtkLogLinearLattice(std::istream &istrm, const std::string &source) { return ReadHtkLattice<LogLinearArc>(istrm, source); }
+
+
+template <typename Arc>
+void Lattice<Arc>::setWeights(const std::vector<float> &weights) {
+  _weights = weights;
+}
+
+template <>
+void Lattice<LogLinearArc>::setWeights(const std::vector<float> &weights) {
+  _weights = weights;
+
+  for (LogLinearArc::StateId s = 0; s < _fst->NumStates(); ++s) {
+    for (MutableArcIterator<LogLinearFst> ait(_fst, s); !ait.Done(); ait.Next()) {
+      LogLinearArc arc = ait.Value();
+      arc.weight.Update(weights);
+      ait.SetValue(arc);
+    }
+  }
+}
 
 }

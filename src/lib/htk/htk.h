@@ -33,6 +33,7 @@
 #include <fst/symbol-table.h>
 #include <openlat/utils.h>
 #include <openlat/vector-weight.h>
+#include <openlat/htk-compiler.h>
 #include <cmath>
 
 using namespace std;
@@ -89,6 +90,23 @@ public:
     return it->second;
   }
 
+  std::vector<std::string> getFeatureNames() {
+    unordered_map<feature_t, size_t>::const_iterator it;
+    std::string strnames[] = {"acoustic", "language", "ngram", "lmin", "lmout", "wdpenalty", "output_wdpenalty", "noise_penalty", "posterior", "xscore" };
+
+    std::vector<std::string> names; 
+    for (it = feature_pos.begin(); it != feature_pos.end(); ++it) {
+      if (it->second >= names.size()) names.resize(it->second + 1);
+      if (it->first < XSCORE) names[it->second] = strnames[it->first];
+      else names[it->second] = strnames[XSCORE] + to_string(it->first - XSCORE + 1);
+    }
+    return names;
+  }
+
+  std::vector<float> getWeights() {
+    return weights;
+  }
+
   size_t findFeature(feature_t feat_name) const {
     unordered_map<feature_t, size_t, feature_hash>::const_iterator it = feature_pos.find(feat_name);
     return (it == feature_pos.end()) ? static_cast<size_t>(-1): it->second;
@@ -120,7 +138,9 @@ struct compute_weight<LogLinearWeight> {
     for (size_t i = 0; i < _w.size(); i++) {
       _w[i] = -_w[i]; 
     }
-    LogLinearWeight w = LogLinearWeight(_w);
+
+    LogLinearWeight::Weight computed = compute_weight<LogLinearWeight::Weight>()(link, weights);
+    LogLinearWeight w = LogLinearWeight(computed.Value(), _w);
     w.Resize(weights.feature_pos.size());
     return w;
   }
@@ -304,6 +324,47 @@ public:
     }
 
     return fst;
+  }
+
+  template<typename Arc>
+  Lattice<Arc> *CreateLattice() {
+    Lattice<Arc> *lat = new Lattice<Arc>();
+
+    lat->setWeights(weights.getWeights()); 
+    lat->setFeatureNames(weights.getFeatureNames()); 
+
+    if (checkStartState() == -1) {
+      LOG(FAIL) << " invalid lattice '" << source << "'; it does not have initial state ";
+    }
+
+    if (checkEndState() == -1) {
+      LOG(FAIL) << " invalid lattice '" << source << "'; it does not have final state ";
+    }
+
+    for (vector<HtkNode>::const_iterator node = nodes.begin(); node < nodes.end(); ++node) {
+      lat->getFst().AddState();
+    }
+    lat->getFst().SetStart(checkStartState());
+    lat->getFst().SetFinal(checkEndState(), Arc::Weight::One());
+
+    for (vector<HtkLink>::const_iterator link = links.begin(); link < links.end(); ++link) {
+      Arc arc;
+      arc.ilabel = link->input;
+      arc.olabel = ((has_output)?link->output:link->input);
+      arc.weight = compute_weight<typename Arc::Weight>()(*link, weights);
+      arc.nextstate = link->end;
+      lat->getFst().AddArc(link->start, arc);
+    }
+
+    lat->getFst().SetInputSymbols(isyms);
+    if (has_output) {
+      lat->getFst().SetOutputSymbols(osyms);
+    }
+    else {
+      lat->getFst().SetOutputSymbols(isyms);
+    }
+
+    return lat;
   }
 
 };

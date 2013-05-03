@@ -30,9 +30,31 @@
 
 namespace openlat {
 
-fst::MutableFst<fst::LogArc>*  ReadHtkLogArc(std::istream &istrm, const std::string &source);
-fst::MutableFst<fst::StdArc>*  ReadHtkStdArc(std::istream &istrm, const std::string &source);
+fst::MutableFst<fst::LogArc>*   ReadHtkLogArc(std::istream &istrm, const std::string &source);
+fst::MutableFst<fst::StdArc>*   ReadHtkStdArc(std::istream &istrm, const std::string &source);
 fst::MutableFst<LogLinearArc>*  ReadHtkLogLinearArc(std::istream &istrm, const std::string &source);
+
+
+template<typename Arc>
+class Lattice {
+  fst::VectorFst<Arc> *_fst; 
+  std::vector<float> _weights;
+  std::vector<std::string> _feature_names;
+  public:
+  Lattice(): _fst(new fst::VectorFst<Arc>()) { } 
+  ~Lattice() { delete _fst; }
+  fst::VectorFst<Arc>& getFst() const { return *_fst; };
+  fst::VectorFst<Arc>& getFst()       { return *_fst; };
+  void setFst(fst::VectorFst<Arc> * fst) { delete _fst; _fst = fst; };
+  void setWeights(const std::vector<float> &weights);
+  const std::vector<float>& getWeights() const { return _weights; }
+  void setFeatureNames(const std::vector<std::string> &feature_names) { _feature_names = feature_names; }
+  const std::vector<std::string>& getFeatureNames() const { return _feature_names; }
+};
+
+Lattice<fst::LogArc>*  ReadHtkLogLattice(std::istream &istrm, const std::string &source);
+Lattice<fst::StdArc>*  ReadHtkStdLattice(std::istream &istrm, const std::string &source);
+Lattice<LogLinearArc>* ReadHtkLogLinearLattice(std::istream &istrm, const std::string &source);
 
 }  // namespace fst
 

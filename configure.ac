@@ -74,7 +74,12 @@ AC_CHECK_HEADERS([string])
 AC_CHECK_HEADERS([iostream])
 AC_CHECK_HEADERS([fst/fstlib.h])
 
+AC_CHECK_HEADERS([execinfo.h])
+AC_CHECK_TOOL([ADDR2LINE], [addr2line], [:])
 
+if test "x$ADDR2LINE" != "x" ; then
+	AC_DEFINE_UNQUOTED(ADDR2LINEBIN, ["$ADDR2LINE"], [Define if add2line is found ])
+fi
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
 

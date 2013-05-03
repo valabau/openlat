@@ -30,63 +30,76 @@
 #include <fst/weight.h>
 #include <fst/vector-fst.h>
 
-
 DECLARE_string(fst_weight_parentheses);
 DECLARE_string(fst_weight_separator);
+
+void dump_backtrace();
 
 namespace openlat {
 
 // vector weight
 template <class W>
 class VectorWeight {
-  typedef enum { VECTOR_WEIGHT_ZERO, VECTOR_WEIGHT_ONE, VECTOR_WEIGHT_OTHER } vector_weight_t;
+  typedef enum { VECTOR_WEIGHT_ZERO, VECTOR_WEIGHT_ONE, VECTOR_WEIGHT_OTHER, VECTOR_WEIGHT_NONE } vector_weight_t;
 
   template<class U> friend bool operator== (const VectorWeight<U> &_w1, const VectorWeight<U> &_w2);
   template<class U> friend bool operator!= (const VectorWeight<U> &_w1, const VectorWeight<U> &_w2);
   template<class U> friend bool ApproxEqual(const VectorWeight<U> &_w1, const VectorWeight<U> &_w2, float delta);
+  template<class U> friend inline VectorWeight<U> Plus(const VectorWeight<U> &w1, const VectorWeight<U> &w2);
+  template<class U> friend inline VectorWeight<U> Times(const VectorWeight<U> &w1, const VectorWeight<U> &w2);
+  template<class U> friend inline VectorWeight<U> Divide(const VectorWeight<U> &w1, const VectorWeight<U> &w2);
 
 public:
   typedef W Weight;
   typedef VectorWeight<typename W::ReverseWeight> ReverseWeight;
 
-  //  VectorWeight() {}
-
-  VectorWeight(vector_weight_t type = VECTOR_WEIGHT_ONE): type_(type) {}
-
-  VectorWeight(const VectorWeight &w): type_(VECTOR_WEIGHT_OTHER) {
-    values_ = w.values_;
+  void check() {
+    if ((values_.size() == 0 and type_ == VECTOR_WEIGHT_OTHER) or (values_.size() > 0 and type_ != VECTOR_WEIGHT_OTHER)) {
+      LOG(ERROR) << "Invalid VectorWeight "<< Length() << "(" << type_ << ") - " << combination_;
+      for (size_t i = 0; i < Length(); i++) LOG(ERROR) << "  w[" << i << "] = " << values_[i];
+      dump_backtrace();
+    }
+  }
+  VectorWeight(vector_weight_t type = VECTOR_WEIGHT_ONE): values_(0), type_(type) {
+    if (type == VECTOR_WEIGHT_OTHER) type = VECTOR_WEIGHT_ONE;
+    combination_ = (type == VECTOR_WEIGHT_NONE)?Weight::NoWeight():((type == VECTOR_WEIGHT_ZERO)?Weight::Zero():Weight::One());
+    check();
   }
 
-  VectorWeight(const vector<W> &w): type_(VECTOR_WEIGHT_OTHER) {
-    values_ = w;
-  }
+  VectorWeight(const VectorWeight &w): combination_(w.combination_), values_(w.values_), type_(w.type_) {check();}
+
+//  VectorWeight(const W& c, const vector<W> &w): combination_(c), values_(w), type_(VECTOR_WEIGHT_OTHER) {check();}
 
   template <typename T>
-  VectorWeight(const vector<T> &w): type_(VECTOR_WEIGHT_OTHER) {
-    values_.resize(w.size());
+  VectorWeight(const T& c,const vector<T> &w): type_(VECTOR_WEIGHT_OTHER) {
+    combination_ = W(c);
+    Resize(w.size());
     for (size_t i = 0; i < w.size(); i++) values_[i] = W(w[i]);
+    check();
   }
 
-  template <class Iterator>
-  VectorWeight(Iterator begin, Iterator end): type_(VECTOR_WEIGHT_OTHER) {
-    values_.resize(end - begin);
-    copy(begin, end, values_.begin());
-  }
+//  template <class Iterator>
+//  VectorWeight(const W& c,Iterator begin, Iterator end): combination_(c), values_(begin, end), type_(VECTOR_WEIGHT_OTHER) {check();}
 
-  VectorWeight(const W &w, size_t n): type_(VECTOR_WEIGHT_OTHER) {
-    values_ = vector<W>(n, w);
+//  VectorWeight(const W& c, const W &w, size_t n): combination_(c), values_(vector<W>(n, w)), type_(VECTOR_WEIGHT_OTHER) {check();}
+
+  static uint64 Properties() {
+    return Weight::Properties();
   }
 
   void Resize(size_t n) {
+    type_ = VECTOR_WEIGHT_OTHER;
     if (type_ == VECTOR_WEIGHT_ZERO) {
-      type_ = VECTOR_WEIGHT_OTHER;
       values_.clear();
       values_.resize(n, W::Zero());
     }
     else if (type_ == VECTOR_WEIGHT_ONE) {
-      type_ = VECTOR_WEIGHT_OTHER;
       values_.clear();
       values_.resize(n, W::One());
+    }
+    else if (type_ == VECTOR_WEIGHT_NONE) {
+      values_.clear();
+      values_.resize(n, W::NoWeight());
     }
     else {
       values_.resize(n, W::One());
@@ -97,6 +110,18 @@ public:
     return values_.size();
   }
 
+  void Update(const vector<float> &w) {
+    if (type_ != VECTOR_WEIGHT_OTHER) return;
+
+    if (Length() > w.size()) LOG(ERROR) << " updating with weights of different lengths ";
+
+    Resize(w.size());
+
+    combination_ = W::One();
+    for (size_t i = 0; i < w.size(); i++) {
+      combination_ = Times(combination_, W(values_[i].Value() * w[i]));
+    }
+  }
 
   static const VectorWeight<W> &Zero() {
     static const VectorWeight<W> zero(VECTOR_WEIGHT_ZERO);
@@ -106,6 +131,11 @@ public:
   static const VectorWeight<W> &One() {
     static const VectorWeight<W> one(VECTOR_WEIGHT_ONE);
     return one;
+  }
+
+  static const VectorWeight<W> NoWeight() {
+    static const VectorWeight<W> none(VECTOR_WEIGHT_NONE);
+    return none;
   }
 
   static const ReverseWeight &ReverseZero() {
@@ -118,8 +148,14 @@ public:
     return one;
   }
 
+  static const ReverseWeight ReverseNoWeight() {
+    static const ReverseWeight none(VECTOR_WEIGHT_NONE);
+    return none;
+  }
+
 
   std::ostream &Write(std::ostream &strm) const {
+    combination_.Write(strm);
     for (size_t i = 0; i < Length(); ++i)
       values_[i].Write(strm);
     return strm;
@@ -127,23 +163,31 @@ public:
 
   VectorWeight<W> &operator=(const VectorWeight<W> &w) {
     type_ = w.type_;
+    combination_ = w.combination_;
     values_ = w.values_;
+    check();
     return *this;
   }
 
   bool Member() const {
     // Zero and One are already memebers
-    bool member = true;
-    for (size_t i = 0; i < Length(); ++i)
-      member = member && values_[i].Member();
-    return member;
+    if (type_ == VECTOR_WEIGHT_ZERO) return W::Zero().Member();
+    else if (type_ == VECTOR_WEIGHT_ONE) return W::One().Member();
+    else if (type_ == VECTOR_WEIGHT_NONE) return W::NoWeight().Member();
+    else {
+      bool member = combination_.Member();
+      for (size_t i = 0; i < Length(); ++i)
+        member = member && values_[i].Member();
+      return member;
+    }
   }
 
   size_t Hash() const {
     if (type_ == VECTOR_WEIGHT_ZERO) return size_t(W::Zero().Hash());
     else if (type_ == VECTOR_WEIGHT_ONE) return size_t(W::One().Hash());
+    else if (type_ == VECTOR_WEIGHT_NONE) return size_t(W::NoWeight().Hash());
     else {
-      uint64 hash = 0;
+      uint64 hash = combination_.Hash();
       for (size_t i = 0; i < Length(); ++i)
         hash = 5 * hash + values_[i].Hash();
       return size_t(hash);
@@ -154,7 +198,8 @@ public:
     if (type_ == VECTOR_WEIGHT_OTHER) {
       VectorWeight<W> w;
       w.type_ = type_;
-      w.values_.resize(Length());
+      w.combination_ = combination_.Quantize(delta);
+      w.Resize(Length());
       for (size_t i = 0; i < Length(); ++i)
         w.values_[i] = values_[i].Quantize(delta);
       return w;
@@ -169,24 +214,39 @@ public:
     if (type_ == VECTOR_WEIGHT_ONE) {
       return ReverseOne();
     }
+    if (type_ == VECTOR_WEIGHT_NONE) {
+      return ReverseNoWeight();
+    }
     else {
-      VectorWeight<W> w;
-      w.values_.resize(Length());
+      ReverseWeight w;
+      w.type_ = type_;
+      w.combination_ = combination_.Reverse();
+      w.Resize(Length());
       for (size_t i = 0; i < Length(); ++i)
         w.values_[i] = values_[i].Reverse();
       return w;
     }
   }
 
-  const W& Value(size_t i) const {
-    if (type_ == VECTOR_WEIGHT_ZERO)     return W::Zero();
-    else if (type_ == VECTOR_WEIGHT_ONE) return W::One();
+  const float& Value() const {
+    return combination_.Value();
+  }
+
+  const float& Value(size_t i) const {
+    static const W zero(W::Zero());
+    static const W one(W::One());
+    static const W none(W::NoWeight());
+    if (type_ == VECTOR_WEIGHT_ZERO)      return zero.Value();
+    else if (type_ == VECTOR_WEIGHT_ONE)  return one.Value();
+    else if (type_ == VECTOR_WEIGHT_NONE) return none.Value();
     else if (i < Length()) {
-      return values_[i];
+      return values_[i].Value();
     }
     else {
-      LOG(ERROR) << " accessing to vector weight outside boundaries ";
-      return W::One();
+      LOG(ERROR) << " accessing to vector weight outside boundaries at index "
+                 << i << " out of " << Length()
+                 << " for type " << type_;
+      return one.Value();
     }
   }
 
@@ -199,67 +259,61 @@ public:
  protected:
 
  private:
+  W combination_;
   vector<W> values_;
   vector_weight_t type_;
 
 };
 
-#define __VECTOR_WEIGHT_ASSIGN(x,l) ((x.type_ == VectorWeight<W>::VECTOR_WEIGHT_ZERO)?(VectorWeight<W>(W::Zero(), l)):((x.type_ == VectorWeight<W>::VECTOR_WEIGHT_ONE)?(VectorWeight<W>(W::One(), l)):x))
-
 template <class W>
-inline bool operator==(const VectorWeight<W> &_w1,
-                       const VectorWeight<W> &_w2) {
-  if (_w1.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER and _w2.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER) return _w1.type_ == _w2.type_;
-  const VectorWeight<W> &w1 = __VECTOR_WEIGHT_ASSIGN(_w1, _w2.Length());
-  const VectorWeight<W> &w2 = __VECTOR_WEIGHT_ASSIGN(_w2, _w1.Length());
+inline bool operator==(const VectorWeight<W> &w1,
+                       const VectorWeight<W> &w2) {
+  if (w1.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER and w2.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER) return w1.type_ == w2.type_;
+  if (w1.Value() != w2.Value()) return false;
+  else {
+    if (w1.type_ == w2.type_ and w1.Length() != w2.Length()) {
+      LOG(ERROR) << " in operator== comparing vectors of different lengths " << w1.Length() << "(" << w1.type_ << ") != " << w2.Length() << "(" << w2.type_ << ")";
+      return false;
+    }
 
-  if (w1.Length() != w2.Length()) {
-    LOG(ERROR) << " comparing vectors of different length ";
-    return false;
-  }
-
-  bool equal = true;
-  for (size_t i = 0; i < w1.Length(); ++i)
-    equal = equal && (w1.Value(i) == w2.Value(i));
-  return equal;
-}
-
-template <class W>
-inline bool operator!=(const VectorWeight<W> &_w1,
-                       const VectorWeight<W> &_w2) {
-  if (_w1.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER and _w2.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER) return _w1.type_ != _w2.type_;
-  const VectorWeight<W> &w1 = __VECTOR_WEIGHT_ASSIGN(_w1, _w2.Length());
-  const VectorWeight<W> &w2 = __VECTOR_WEIGHT_ASSIGN(_w2, _w1.Length());
-
-  if (w1.Length() != w2.Length()) {
-    LOG(ERROR) << " comparing vectors of different length ";
+    for (size_t i = 0; i < w1.Length(); ++i)
+      if (w1.Value(i) != w2.Value(i)) return false;
     return true;
   }
-
-  bool not_equal = false;
-  for (size_t i = 0; (i < w1.Length()) && !not_equal; ++i)
-    not_equal = not_equal || (w1.Value(i) != w2.Value(i));
-  return not_equal;
 }
 
 template <class W>
-inline bool ApproxEqual(const VectorWeight<W> &_w1,
-                        const VectorWeight<W> &_w2,
-                        float delta = fst::kDelta) {
-  if (_w1.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER and _w2.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER) return _w1.type_ == _w2.type_;
-  const VectorWeight<W> &w1 = __VECTOR_WEIGHT_ASSIGN(_w1, _w2.Length());
-  const VectorWeight<W> &w2 = __VECTOR_WEIGHT_ASSIGN(_w2, _w1.Length());
+inline bool operator!=(const VectorWeight<W> &w1,
+                       const VectorWeight<W> &w2) {
+  if (w1.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER and w2.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER) return w1.type_ != w2.type_;
+  if (w1.Value() != w2.Value()) return true;
+  else {
+    if (w1.type_ == w2.type_ and w1.Length() != w2.Length()) {
+      LOG(ERROR) << " in operator!= comparing vectors of different lengths " << w1.Length() << "(" << w1.type_ << ") != " << w2.Length() << "(" << w2.type_ << ")";
+      return true;
+    }
 
-  if (w1.Length() != w2.Length()) {
-    LOG(ERROR) << " comparing vectors of different length ";
+    for (size_t i = 0; i < w1.Length(); ++i)
+      if (w1.Value(i) != w2.Value(i)) return true;
+    return false;
+  }
+}
+
+template <class W>
+inline bool ApproxEqual(const VectorWeight<W> &w1,
+                        const VectorWeight<W> &w2,
+                        float delta = fst::kDelta) {
+
+  if (w1.type_ == w2.type_ and w1.Length() != w2.Length()) {
+    LOG(ERROR) << " in ApproxEqual comparing vectors of different lengths " << w1.Length() << "(" << w1.type_ << ") != " << w2.Length() << "(" << w2.type_ << ")";
     return false;
   }
 
-  bool approx_equal = true;
+  if (not ApproxEqual(w1.combination_, w2.combination_, delta)) return false;
+
   for (size_t i = 0; i < w1.Length(); ++i)
-    approx_equal = approx_equal &&
-        ApproxEqual(w1.Value(i), w2.Value(i), delta);
-  return approx_equal;
+    if (not ApproxEqual(w1.values_[i], w2.values_[i], delta)) return false;
+  return true;
 }
 
 template <class W>
@@ -274,9 +328,9 @@ inline std::ostream &operator<<(std::ostream &strm, const VectorWeight<W> &w) {
 
   if (write_parens)
     strm << FLAGS_fst_weight_parentheses[0];
+  strm << w.Value();
   for (size_t i = 0; i < w.Length(); ++i) {
-    if(i)
-      strm << separator;
+    strm << separator;
     strm << w.Value(i);
   }
   if (write_parens)
@@ -285,7 +339,76 @@ inline std::ostream &operator<<(std::ostream &strm, const VectorWeight<W> &w) {
   return strm;
 }
 
-typedef VectorWeight<fst::LogWeight> LogLinearWeight;
+template <class W>
+inline VectorWeight<W> Plus(const VectorWeight<W> &w1,
+                             const VectorWeight<W> &w2) {
+  VectorWeight<W> res;
+  res.combination_ = Plus(w1.combination_, w2.combination_);
+  if (w1.combination_.Value() < w2.combination_.Value()) {
+    res.values_ = w1.values_;
+    res.type_ = w1.type_;
+  }
+  else {
+    res.values_ = w2.values_;
+    res.type_ = w2.type_;
+  }
+  return res;
+}
+
+template <class W>
+inline VectorWeight<W> Times(const VectorWeight<W> &w1,
+                             const VectorWeight<W> &w2) {
+  switch (w1.type_) {
+    case VectorWeight<W>::VECTOR_WEIGHT_ONE: return w2;
+    case VectorWeight<W>::VECTOR_WEIGHT_ZERO:;
+    case VectorWeight<W>::VECTOR_WEIGHT_NONE: return w1;
+    default: {
+      switch (w2.type_) {
+        case VectorWeight<W>::VECTOR_WEIGHT_ONE: return w1;
+        case VectorWeight<W>::VECTOR_WEIGHT_ZERO:;
+        case VectorWeight<W>::VECTOR_WEIGHT_NONE: return w2;
+      }
+    }
+  }
+
+  // else both cases are OTHER
+  if (w1.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER or w2.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER) {
+    LOG(ERROR) << " in Times comparing vectors of wrong types " << w1.Length() << "(" << w1.type_ << ") != " << w2.Length() << "(" << w2.type_ << ")";
+    return VectorWeight<W>::NoWeight();
+  }
+  else if (w1.Length() != w2.Length()) {
+    LOG(ERROR) << " in Times comparing vectors of different lengths " << w1.Length() << "(" << w1.type_ << ") != " << w2.Length() << "(" << w2.type_ << ")";
+    return VectorWeight<W>::NoWeight();
+  }
+  else {
+    VectorWeight<W> res;
+    res.type_ = VectorWeight<W>::VECTOR_WEIGHT_OTHER;
+    res.combination_ = Times(w1.combination_, w2.combination_);
+    res.values_.resize(w1.Length());
+    for (size_t i = 0; i < res.Length(); i++) {
+      res.values_[i] = Times(w1.values_[i], w2.values_[i]);
+    }
+    return res;
+  }
+}
+
+//template <class W>
+//inline VectorWeight<W> Divide(const VectorWeight<W> &w1,
+//                             const VectorWeight<W> &w2) {
+//  VectorWeight<W> res;
+//  res.combination_ = Divide(w1.combination_, w2.combination_);
+//  if (w1.combination_.Value() < w2.combination_.Value()) {
+//    res.values_ = w1.values_;
+//    res.type_ = w1.type_;
+//  }
+//  else {
+//    res.values_ = w2.values_;
+//    res.type_ = w2.type_;
+//  }
+//  return res;
+//}
+
+typedef VectorWeight<fst::TropicalWeight> LogLinearWeight;
 typedef fst::ArcTpl<LogLinearWeight> LogLinearArc;
 typedef fst::VectorFst<LogLinearArc> LogLinearFst;
 
