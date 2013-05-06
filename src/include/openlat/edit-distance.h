@@ -274,7 +274,7 @@ namespace openlat {
       ShortestDistance(fst_, &backward_, true);
     }
 
-    void getFeatures(std::vector< std::pair< std::string, std::vector<float> > >& options) {
+    void getFeatures(std::vector< std::pair< std::string, std::vector<float> > >& options) const {
       options.clear();
       const std::vector< EditHyp<Arc> >& hyps = trellis_.back();
       const fst::SymbolTable &in = *fst_.InputSymbols();
@@ -282,19 +282,30 @@ namespace openlat {
         const EditHyp<Arc>& hyp = hyps[s];
         for (fst::ArcIterator<F> ait(fst_, s); !ait.Done(); ait.Next()) {
           const Arc &arc = ait.Value();
-          std::vector<float> features;
-          features.push_back(-Times(hyp.fwd, Times(arc.weight, backward_[arc.nextstate])).Value());
-          features.push_back(hyp.contiguous);
-          features.push_back(hyp.cost);
-          for (size_t i = 0; i < MAX_EDIT; i++) {
-            features.push_back(hyp.edit_count[i]);
-          }
-          options.push_back(make_pair(in.Find(arc.ilabel), features));
+          const Weight w = Times(hyp.fwd, Times(arc.weight, backward_[arc.nextstate]));
+          options.push_back(make_pair(in.Find(arc.ilabel), getHypFeatures(w, hyp)));
+        }
+        // if state is final add </s>
+        Weight weight = fst_.Final(s);
+        if (weight != Weight::Zero()) {
+          const Weight w = Times(hyp.fwd, backward_[s]);
+          options.push_back(make_pair("</s>", getHypFeatures(w, hyp)));
         }
       }
     }
 
-    void appendFeatureNames(std::vector<std::string> &feature_names) {
+    std::vector<float> getHypFeatures(const Weight& w, const EditHyp<Arc>& hyp) const {
+      std::vector<float> features;
+      features.push_back(-w.Value());
+      features.push_back(hyp.contiguous);
+      features.push_back(hyp.cost);
+      for (size_t i = 0; i < MAX_EDIT; i++) {
+        features.push_back(hyp.edit_count[i]);
+      }
+      return features;
+    }
+
+    void appendFeatureNames(std::vector<std::string> &feature_names) const {
       feature_names.push_back("contiguous");
       feature_names.push_back("edit_distance");
       for (size_t i = 0; i < MAX_EDIT; i++) {
@@ -324,32 +335,22 @@ namespace openlat {
   };
 
   template <>
-  void EditDistanceTrellis<LogLinearFst>::getFeatures(std::vector< std::pair< std::string, std::vector<float> > >& options) {
-    options.clear();
-    const std::vector< EditHyp<LogLinearArc> >& hyps = trellis_.back();
-    const fst::SymbolTable &in = *fst_.InputSymbols();
-    for (StateId s = 0; s < fst_.NumStates(); s++) {
-      const EditHyp<Arc>& hyp = hyps[s];
-      for (fst::ArcIterator<LogLinearFst> ait(fst_, s); !ait.Done(); ait.Next()) {
-        LogLinearArc arc = ait.Value();
-        typename LogLinearArc::Weight w = Times(hyp.fwd, Times(arc.weight, backward_[arc.nextstate]));
-        std::vector<float> features;
-        for (size_t i = 0; i < w.Length(); ++i) {
-          features.push_back(-w.Value(i));
-        }
-        features.push_back(-w.Value());
-        features.push_back(hyp.contiguous);
-        features.push_back(hyp.cost);
-        for (size_t i = 0; i < MAX_EDIT; i++) {
-          features.push_back(hyp.edit_count[i]);
-        }
-        options.push_back(make_pair(in.Find(arc.ilabel), features));
-      }
+  std::vector<float> EditDistanceTrellis<LogLinearFst>::getHypFeatures(const Weight& w, const EditHyp<LogLinearArc>& hyp) const {
+    std::vector<float> features;
+    for (size_t i = 0; i < w.Length(); ++i) {
+      features.push_back(-w.Value(i));
     }
+    features.push_back(-w.Value());
+    features.push_back(hyp.contiguous);
+    features.push_back(hyp.cost);
+    for (size_t i = 0; i < MAX_EDIT; i++) {
+      features.push_back(hyp.edit_count[i]);
+    }
+    return features;
   }
 
   template <>
-  void EditDistanceTrellis<LogLinearFst>::appendFeatureNames(std::vector<std::string> &feature_names) {
+  void EditDistanceTrellis<LogLinearFst>::appendFeatureNames(std::vector<std::string> &feature_names) const {
     feature_names.push_back("combined");
     feature_names.push_back("contiguous");
     feature_names.push_back("edit_distance");
