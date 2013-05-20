@@ -182,6 +182,10 @@ public:
     // add epsilon symbols (!NULL in htk)
     isyms->AddSymbol("!NULL");
     osyms->AddSymbol("!NULL");
+    isyms->AddSymbol("<s>");
+    osyms->AddSymbol("<s>");
+    isyms->AddSymbol("</s>");
+    osyms->AddSymbol("</s>");
   };
 
   ~HtkLattice() {
