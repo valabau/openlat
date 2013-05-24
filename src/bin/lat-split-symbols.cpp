@@ -32,15 +32,40 @@
 #include <openlat/utils.h>
 #include <openlat/split-symbols.h>
 #include <openlat/iofilter.h>
-
+#include <fst/script/fst-class.h>
 
 
 
 using namespace std;
 using namespace fst;
+using namespace fst::script;
 using namespace openlat;
 
 typedef fst::VectorFst<fst::LogArc> LogVectorFst;
+
+template <typename Arc>
+void process(const FstClass& _fst, const char *output, const string& separator, const string* space) {
+  const Fst<Arc>& fst = *_fst.GetFst<Arc>();
+  Verify(fst);
+
+  fst::SymbolTable * const_syms = new fst::SymbolTable("const syms");
+  const_syms->AddSymbol("<s>");
+  const_syms->AddSymbol("</s>");
+  const_syms->AddSymbol("<space>");
+  const_syms->AddSymbol("<phrase>");
+  const_syms->AddSymbol("<epsilon>");
+  const_syms->AddSymbol("!NULL");
+
+  VectorFst<Arc> ofst;
+  SplitSymbols<Arc>(fst, &ofst, separator, space, const_syms);
+
+  delete const_syms;
+
+  FstWriteOptions opts(output);
+  ofilter os(output);
+  ofst.Write(os, opts);
+}
+
 
 int main(int argc, char *argv[]) {
   const string stdio_str("-");
@@ -62,31 +87,28 @@ int main(int argc, char *argv[]) {
   if (argc >= 2) input = argv[1];
   if (argc >= 3) output = argv[2];
 
+
   {
     ifilter is(input);
-    MutableFst<LogArc> *fst = MutableFst<LogArc>::Read(is, FstReadOptions(input));
-    Verify(*fst);
+    FstClass *fst = FstClass::Read(is, string(input));
 
-    fst::SymbolTable * const_syms = new fst::SymbolTable("const syms");
-    const_syms->AddSymbol("<s>");
-    const_syms->AddSymbol("</s>");
-    const_syms->AddSymbol("<space>");
-    const_syms->AddSymbol("<phrase>");
-    const_syms->AddSymbol("<epsilon>");
-    const_syms->AddSymbol("!NULL");
+    const string& type = fst->ArcType();
+    if (type == "log") {
+      process<LogArc>(*fst, output, separator, space);
+    }
 
-    VectorFst<LogArc> ofst;
-    SplitSymbols(*fst, &ofst, separator, space, const_syms);
+    else if (type == "standard") {
+      process<StdArc>(*fst, output, separator, space);
+    }
 
-    delete const_syms;
+    else {
+      cerr << "Unsupported arc type '" << type << "'\n";
+    }
 
-    FstWriteOptions opts(output);
-    ofilter os(output);
-    ofst.Write(os, opts);
-
-    if (space) delete space;
     delete fst;
   }
+
+  if (space) delete space;
 
   return EXIT_SUCCESS;
 }
