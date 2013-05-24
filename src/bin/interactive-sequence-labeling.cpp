@@ -24,6 +24,8 @@
 #include <fst/fstlib.h>
 #include <openlat/interactive-sequence-labeling.h>
 #include <openlat/normalize.h>
+#include <openlat/htk-compiler.h>
+#include <openlat/iofilter.h>
 
 
 #include <vector>
@@ -64,7 +66,9 @@ int main (int argc, char *argv[]) {
 
 
     //cerr << "Loading " << filename << " ...\n";
-    VectorFst<LogArc> *fst = VectorFst<LogArc>::Read(filename);
+    //VectorFst<LogArc> *fst = VectorFst<LogArc>::Read(filename);
+    ifilter is(filename.c_str());
+    MutableFst<LogArc> *fst = ReadHtkLogArc(is, filename);
 
     if (amscale != 1.0) ArcMap(fst, PowerMapper<LogArc>(amscale));
 

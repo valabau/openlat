@@ -468,7 +468,7 @@ struct sort_sample_score_by_score {
 
 template <class Arc>
 struct RandomSampleScorer {
-  float operator()(const fst::Fst<Arc> &fst) {
+  float operator()(const fst::Fst<Arc> &) {
     return log(static_cast<float>(rand())/static_cast<float>(RAND_MAX));
   }
 };
