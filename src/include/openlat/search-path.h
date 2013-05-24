@@ -23,6 +23,7 @@
 #ifndef openlat_SEARCH_PATH_H_
 #define openlat_SEARCH_PATH_H_
 
+#include <openlat/normalize.h>
 
 namespace openlat {
 
