@@ -77,7 +77,7 @@ void dump_backtrace() {
 #endif
 
 #ifdef ADDR2LINEBIN
-    sprintf(syscom, ADDR2LINEBIN " --demangle --basenames --functions -e %s %p", mdlinfo.dli_fname, mdlinfo.dli_saddr);
+    sprintf(syscom, ADDR2LINEBIN " --demangle --basenames --functions -e %s %p 2> /dev/null", mdlinfo.dli_fname, mdlinfo.dli_saddr);
     FILE *cmd = popen(syscom, "r");
     int num = fscanf(cmd, "%s\n%s\n", funcname, fileline);
     status = pclose(cmd);
