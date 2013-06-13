@@ -294,6 +294,51 @@ namespace openlat {
       }
     }
 
+    void updateMap(std::map<Label, std::pair<Weight, const EditHyp<Arc> *> >& words,
+                   const Label &label, const Weight &weight, const EditHyp<Arc> *hyp) const
+    {
+      typename std::map<Label, std::pair<Weight, const EditHyp<Arc> *> >::iterator it = words.find(label);
+      if (it == words.end()) {
+        words.insert(make_pair(label, make_pair(weight, hyp)));
+      }
+      else {
+        if (hyp->cost < it->second.second->cost or  (hyp->cost == it->second.second->cost and weight.Value() < it->second.first.Value())) {
+          it->second.first = weight;
+          it->second.second = hyp;
+        }
+      }
+    }
+
+    void getUniqueFeatures(std::vector< std::pair< std::string, std::vector<float> > >& options) const {
+      std::map<Label, std::pair<Weight, const EditHyp<Arc>*> > words;
+
+      options.clear();
+      const std::vector< EditHyp<Arc> >& hyps = trellis_.back();
+      const fst::SymbolTable &in = *fst_.InputSymbols();
+      Label end = in.NumSymbols();
+      for (StateId s = 0; s < fst_.NumStates(); s++) {
+        const EditHyp<Arc>& hyp = hyps[s];
+        for (fst::ArcIterator<F> ait(fst_, s); !ait.Done(); ait.Next()) {
+          const Arc &arc = ait.Value();
+          const Weight w = Times(hyp.fwd, Times(arc.weight, backward_[arc.nextstate]));
+          updateMap(words, arc.ilabel, w, &hyp);
+        }
+        // if state is final add </s>
+        Weight weight = fst_.Final(s);
+        if (weight != Weight::Zero()) {
+          const Weight w = Times(hyp.fwd, backward_[s]);
+          updateMap(words, end, w, &hyp);
+        }
+      }
+
+      typename std::map<Label, std::pair<Weight, const EditHyp<Arc>*> >::const_iterator it;
+      for (it = words.begin(); it != words.end(); ++it) {
+        const std::string label = (it->first == end) ? "</s>" : in.Find(it->first);
+        options.push_back(make_pair(label, getHypFeatures(it->second.first, *it->second.second)));
+      }
+
+    }
+
     std::vector<float> getHypFeatures(const Weight& w, const EditHyp<Arc>& hyp) const {
       std::vector<float> features;
       features.push_back(-w.Value());
@@ -318,7 +363,7 @@ namespace openlat {
 
 
 
-    EditDistanceTrellis(const F& fst): fst_(fst) {
+  EditDistanceTrellis(const F& fst): fst_(fst) {
       if (not (fst.Properties(fst::kTopSorted | fst::kCoAccessible, false) & (fst::kTopSorted | fst::kCoAccessible))) {
         LOG(ERROR) << "The fst is not sorted, the edit distance algorithm will not work";
       }
