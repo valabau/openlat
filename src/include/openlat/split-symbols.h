@@ -100,16 +100,17 @@ void SplitSymbols(const fst::Fst<Arc> &fst, fst::MutableFst<Arc> *ofst,
       // add nodes to the fst
       {
         TrieNodeIter start = root;
-        StateId start_state = start->second.first;
 
         // iterate all tokens but the last one
         for (size_t i = 0; i < tokens.size() - 1; i++) {
           Label label = isyms.AddSymbol(tokens[i]);
+          StateId start_state = start->second.first;
 
-          TrieNodeIter end = start->second.second->find(label);
-          if (end == start->second.second->end()) {
+          boost::shared_ptr< TrieNode<Arc> > node = start->second.second;
+          TrieNodeIter end = node->find(label);
+          if (end == node->end()) {
             StateId end_state = ofst->AddState();
-            end = start->second.second->insert(std::make_pair(label, std::make_pair(end_state, new TrieNode<Arc>))).first;
+            end = node->insert(std::make_pair(label, std::make_pair(end_state, new TrieNode<Arc>))).first;
 
             Arc oarc;
             oarc.ilabel = label;
@@ -126,10 +127,12 @@ void SplitSymbols(const fst::Fst<Arc> &fst, fst::MutableFst<Arc> *ofst,
 
         // if the original state was final add arc to the superfinal state
         if (is_final) {
+          StateId start_state = start->second.first;
+
           Arc oarc;
           oarc.ilabel = isyms.AddSymbol(tokens.back());
           oarc.olabel = (is_acceptor)?osyms.AddSymbol(tokens.back()):osyms.AddSymbol(ostr);
-          oarc.weight = final_weight;
+          oarc.weight = Times(arc.weight, final_weight);
           oarc.nextstate = superfinal;
           ofst->AddArc(start_state, oarc);
         }
@@ -138,6 +141,7 @@ void SplitSymbols(const fst::Fst<Arc> &fst, fst::MutableFst<Arc> *ofst,
         fst::ArcIterator < fst::Fst<Arc> > nsaiter(fst, arc.nextstate);
         if (not nsaiter.Done()) {
           // add last token
+          StateId start_state = start->second.first;
           StateId end_state = state_map[arc.nextstate];
           if (space != 0) {
             end_state = ofst->AddState();
@@ -166,6 +170,7 @@ void SplitSymbols(const fst::Fst<Arc> &fst, fst::MutableFst<Arc> *ofst,
       }
     }
   }
+  Connect(ofst);
 
   ofst->SetInputSymbols(&isyms);
   ofst->SetOutputSymbols(&osyms);
