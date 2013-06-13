@@ -134,6 +134,9 @@ struct compute_weight {
 template <>
 struct compute_weight<LogLinearWeight> {
   inline LogLinearWeight operator()(const HtkLink &link, const HtkWeights &weights) {
+    if (link.features.empty()) {
+      return LogLinearWeight::One();
+    }
     std::vector<float> _w(link.features);
     for (size_t i = 0; i < _w.size(); i++) {
       _w[i] = -_w[i]; 
