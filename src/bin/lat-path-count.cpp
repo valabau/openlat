@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
   const string stdio_str("-");
   const char * input = stdio_str.c_str();
 
-  if (argc < 2) return EXIT_FAILURE;
+  //if (argc < 2) return EXIT_FAILURE;
   if (argc >= 2) input = argv[1];
 
   {

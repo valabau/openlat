@@ -80,7 +80,7 @@ int main (int argc, char *argv[]) {
     n_lattices++;
     total_paths += PathCount(*fst); 
     if (pruning_threshold != 0) {
-      PruneArcs(fst, pruning_threshold, 10e100);
+      PruneArcs(fst, pruning_threshold, 1e100);
       Connect(fst);
       float n_paths = PathCount(*fst); 
       if (n_paths < 1) {
