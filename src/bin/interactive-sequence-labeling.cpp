@@ -26,6 +26,7 @@
 #include <openlat/normalize.h>
 #include <openlat/htk-compiler.h>
 #include <openlat/iofilter.h>
+#include <openlat/path-count.h>
 
 
 #include <vector>
@@ -60,24 +61,33 @@ int main (int argc, char *argv[]) {
   vector<const MutableFst<LogArc> *> fsts;
   vector<vector <VLabel> > refs;
 
+  size_t n_lattices = 0;
+  float total_paths = .0;
+  float pruned_paths = .0;
+
   cerr << "Loading lattices\n";
   while (getline(refs_in, reference)) {
     file_in >> filename;
 
 
     //cerr << "Loading " << filename << " ...\n";
-    //VectorFst<LogArc> *fst = VectorFst<LogArc>::Read(filename);
-    ifilter is(filename.c_str());
-    MutableFst<LogArc> *fst = ReadHtkLogArc(is, filename);
+    VectorFst<LogArc> *fst = VectorFst<LogArc>::Read(filename);
+    //ifilter is(filename.c_str());
+    //MutableFst<LogArc> *fst = ReadHtkLogArc(is, filename);
 
     if (amscale != 1.0) ArcMap(fst, PowerMapper<LogArc>(amscale));
 
-// XXX:   if (pruning_threshold != 0) {
-//      VectorFst<Arc> * fst_pruned = new VectorFst<Arc>();
-//      fst->copyPrunePosterior(*fst_pruned, pruning_threshold);
-//      swap(fst, fst_pruned);
-//      delete fst_pruned;
-//    }
+    n_lattices++;
+    total_paths += PathCount(*fst); 
+    if (pruning_threshold != 0) {
+      PruneArcs(fst, pruning_threshold, 10e100);
+      Connect(fst);
+      float n_paths = PathCount(*fst); 
+      if (n_paths < 1) {
+        cerr << "Prunnig to heavy for lattice '" << filename << "'. Zero paths remain after the pruning.\n";
+      }
+      pruned_paths += n_paths; 
+    }
 
     vector<VLabel> ref;
     string_to_syms(reference, fst->OutputSymbols(), ref);
@@ -85,6 +95,11 @@ int main (int argc, char *argv[]) {
 
     fsts.push_back(fst);
     refs.push_back(ref);
+  }
+
+
+  if (pruning_threshold != 0) {
+    cerr << "Pruning to " << pruning_threshold << " results into " << (100.0*pruned_paths/total_paths) << "% of the paths\n";
   }
 
   assert_bt(fsts.size() > 0, "No fsts exist!!!");

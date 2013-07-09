@@ -63,7 +63,7 @@ AC_ARG_WITH(gprof, AC_HELP_STRING(--with-gprof, \
 CPPFLAGS="-DDEBUG=1" \
 CXXFLAGS+=" -pg"])
 
-
+#CPPFLAGS+=" -DGIT_SHA1=\"\\\"\`git describe --abbrev=64 --always --dirty\`\\\"\""
 
 # Checks for libraries.
 AM_PROG_LIBTOOL

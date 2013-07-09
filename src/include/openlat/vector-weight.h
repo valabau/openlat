@@ -47,7 +47,7 @@ class VectorWeight {
   template<class U> friend bool ApproxEqual(const VectorWeight<U> &_w1, const VectorWeight<U> &_w2, float delta);
   template<class U> friend inline VectorWeight<U> Plus(const VectorWeight<U> &w1, const VectorWeight<U> &w2);
   template<class U> friend inline VectorWeight<U> Times(const VectorWeight<U> &w1, const VectorWeight<U> &w2);
-  template<class U> friend inline VectorWeight<U> Divide(const VectorWeight<U> &w1, const VectorWeight<U> &w2);
+  template<class U> friend inline VectorWeight<U> Divide(const VectorWeight<U> &w1, const VectorWeight<U> &w2, fst::DivideType typ);
 
 public:
   typedef W Weight;
@@ -392,21 +392,46 @@ inline VectorWeight<W> Times(const VectorWeight<W> &w1,
   }
 }
 
-//template <class W>
-//inline VectorWeight<W> Divide(const VectorWeight<W> &w1,
-//                             const VectorWeight<W> &w2) {
-//  VectorWeight<W> res;
-//  res.combination_ = Divide(w1.combination_, w2.combination_);
-//  if (w1.combination_.Value() < w2.combination_.Value()) {
-//    res.values_ = w1.values_;
-//    res.type_ = w1.type_;
-//  }
-//  else {
-//    res.values_ = w2.values_;
-//    res.type_ = w2.type_;
-//  }
-//  return res;
-//}
+template <class W>
+inline VectorWeight<W> Divide(const VectorWeight<W> &w1,
+                              const VectorWeight<W> &w2,
+                                    fst::DivideType typ = fst::DIVIDE_ANY) {
+
+  switch (w2.type_) {
+    case VectorWeight<W>::VECTOR_WEIGHT_ONE: return w1;
+    case VectorWeight<W>::VECTOR_WEIGHT_ZERO:;
+    case VectorWeight<W>::VECTOR_WEIGHT_NONE: return VectorWeight<W>::NoWeight();
+    default: {
+      switch (w1.type_) {
+        case VectorWeight<W>::VECTOR_WEIGHT_ZERO: return VectorWeight<W>::Zero();
+        case VectorWeight<W>::VECTOR_WEIGHT_NONE: return w1;
+        //case VectorWeight<W>::VECTOR_WEIGHT_ONE: w1.Resize(w2.Length());
+      }
+    }
+  }
+
+  VectorWeight<W> res(w1);
+  res.Resize(w2.Length());
+
+  // else both cases are OTHER
+  if (res.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER or w2.type_ != VectorWeight<W>::VECTOR_WEIGHT_OTHER) {
+    LOG(ERROR) << " in Times comparing vectors of wrong types " << res.Length() << "(" << res.type_ << ") != " << w2.Length() << "(" << w2.type_ << ")";
+    return VectorWeight<W>::NoWeight();
+  }
+  else if (res.Length() != w2.Length()) {
+    LOG(ERROR) << " in Times comparing vectors of different lengths " << res.Length() << "(" << res.type_ << ") != " << w2.Length() << "(" << w2.type_ << ")";
+    return VectorWeight<W>::NoWeight();
+  }
+  else {
+    res.type_ = VectorWeight<W>::VECTOR_WEIGHT_OTHER;
+    res.combination_ = Divide(res.combination_, w2.combination_);
+    res.values_.resize(res.Length());
+    for (size_t i = 0; i < res.Length(); i++) {
+      res.values_[i] = Divide(res.values_[i], w2.values_[i]);
+    }
+    return res;
+  }
+}
 
 typedef VectorWeight<fst::TropicalWeight> LogLinearWeight;
 typedef fst::ArcTpl<LogLinearWeight> LogLinearArc;

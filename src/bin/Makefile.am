@@ -1,7 +1,7 @@
 AM_CPPFLAGS = $(WARNING_CXXFLAGS) $(COMPILANCE_CXXFLAGS) -I$(top_srcdir)/src/include
 AM_LDFLAGS = -L/usr/lib/fst -ldl -lfst -lfstscript #-lngram-fst 
 
-bin_PROGRAMS = lat-compile lat-normalize lat-rmprefix lat-sumsuffixes lat-split-symbols lat-print-htk interactive-sequence-labeling #ngram-compile 
+bin_PROGRAMS = lat-compile lat-normalize lat-rmprefix lat-sumsuffixes lat-split-symbols lat-print-htk lat-path-count lat-prune-arcs interactive-sequence-labeling #ngram-compile 
 LDADD = ../lib/libopenlat.la -lfst -ldl $(BOOST_IOSTREAMS_LIB)
 
 interactive_sequence_labeling_SOURCES = interactive-sequence-labeling.cpp
@@ -12,3 +12,5 @@ lat_rmprefix_SOURCES = lat-rmprefix.cpp
 lat_sumsuffixes_SOURCES = lat-sumsuffixes.cpp
 lat_split_symbols_SOURCES = lat-split-symbols.cpp
 lat_print_htk_SOURCES = lat-print-htk.cpp
+lat_path_count_SOURCES = lat-path-count.cpp
+lat_prune_arcs_SOURCES = lat-prune-arcs.cpp
