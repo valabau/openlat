@@ -28,13 +28,6 @@
 namespace openlat {
 
 template<class Arc>
-float PathCount(const fst::Fst<Arc> &fst) {
-  vector<fst::LogArc::Weight> distance;
-  StatePathCount(fst, &distance);
-  return exp(-distance[fst.Start()].Value());
-}
-
-template<class Arc>
 void StatePathCount(const fst::Fst<Arc> &fst, std::vector<fst::LogArc::Weight> *distance) {
   typedef fst::VectorFst<fst::LogArc> Fst;
   typedef typename Arc::Weight Weight;
@@ -48,6 +41,15 @@ void StatePathCount(const fst::Fst<Arc> &fst, std::vector<fst::LogArc::Weight> *
 
   delete pfst;
 }
+
+
+template<class Arc>
+float PathCount(const fst::Fst<Arc> &fst) {
+  vector<fst::LogArc::Weight> distance;
+  StatePathCount(fst, &distance);
+  return exp(-distance[fst.Start()].Value());
+}
+
 
 }  // namespace openlat
 

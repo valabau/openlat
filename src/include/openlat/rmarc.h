@@ -33,6 +33,21 @@ struct RmArcOptions {
   RmArcOptions(ArcFilter filt): arc_filter(filt) {}
 };
 
+// True if specified labels match (don't match) when M is
+// true (false) following the T match_t type criteria
+template <class A>
+class InvalidWeightFilter {
+public:
+  typedef typename A::Weight W;
+
+  InvalidWeightFilter() {};
+
+  bool operator()(const A &arc) const {
+    if (arc.weight.Member() and arc.weight != W::NoWeight() and arc.weight != W::Zero()) return true;
+    return false;
+  }
+};
+
 
 template<class Arc, class ArcFilter>
 void RmArc(fst::MutableFst<Arc> *fst, const RmArcOptions<Arc, ArcFilter> &opts) {
@@ -118,7 +133,8 @@ void PruneArcs(fst::MutableFst<Arc> *fst, typename Arc::Weight threshold, typena
       }
     }
   }
-  fst::Connect(fst);
+
+  RmArc<Arc, InvalidWeightFilter<Arc> >(fst, RmArcOptions<Arc, InvalidWeightFilter<Arc> >(InvalidWeightFilter<Arc>()));
 }
 
 
