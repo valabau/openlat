@@ -28,3 +28,18 @@ htk/lex.o: htk/lex.cpp
 htk/lex.cpp: $(srcdir)/htk/htk.l
 	$(LEX) $(LFLAGS) $(AM_LFLAGS) --outfile=htk/lex.cpp $(srcdir)/htk/htk.l 
 
+
+### Python extension ###
+if HAVE_SWIG
+BUILT_SOURCES = $(builddir)/openlat_swig_wrap.cpp
+SWIG_SOURCES = openlat.i extra_typemaps.i
+
+pkgpython_PYTHON = openlat.py
+pkgpyexec_LTLIBRARIES   = _openlat.la
+_openlat_la_SOURCES  = $(BUILT_SOURCES) $(SWIG_SOURCES)
+_openlat_la_CXXFLAGS = $(COMPILANCE_CXXFLAGS) $(AX_SWIG_PYTHON_CPPFLAGS) -I$(top_srcdir)/src/include 
+_openlat_la_LDFLAGS  = -version-info 0:0:0 -export-dynamic -module $(PYTHON_LDFLAGS) $(LDFLAGS) -lfst
+
+$(builddir)/openlat_swig_wrap.cpp : $(SWIG_SOURCES) 
+	$(SWIG) $(AX_SWIG_PYTHON_OPT) -I$(top_srcdir)/src/include -o $@ $<
+endif

@@ -23,6 +23,7 @@
 #ifndef openlat_APPROX_SHORTEST_PATH_H_
 #define openlat_APPROX_SHORTEST_PATH_H_
 
+#include <fst/fst.h>
 
 namespace openlat {
 
@@ -32,24 +33,24 @@ namespace openlat {
 
 
 template<class FromArc, class ToArc, class Queue, class ArcFilter>
-void ApproxShortestPath(const Fst<FromArc> &ifst, MutableFst<ToArc> *ofst,
+void ApproxShortestPath(const fst::Fst<FromArc> &ifst, fst::MutableFst<ToArc> *ofst,
                   vector<typename ToArc::Weight> *distance,
-                  ShortestPathOptions<ToArc, Queue, ArcFilter> &opts) {
-  typedef WeightConvertMapper<FromArc, ToArc> WeightMapper;
-  typedef MapFst<FromArc, ToArc, WeightMapper> ApproxFst;
-  ShortestPath(ApproxFst(fst, WeightMapper), ofst, distance, opts);
+                  fst::ShortestPathOptions<ToArc, Queue, ArcFilter> &opts) {
+  typedef fst::WeightConvertMapper<FromArc, ToArc> WeightMapper;
+  typedef fst::MapFst<FromArc, ToArc, WeightMapper> ApproxFst;
+  fst::ShortestPath(ApproxFst(fst, WeightMapper), ofst, distance, opts);
 }
 
 
 template<class FromArc, ToArc>
-void ApproxShortestPath(const Fst<FromArc> &ifst, MutableFst<ToArc> *ofst,
+void ApproxShortestPath(const fst::Fst<FromArc> &ifst, fst::MutableFst<ToArc> *ofst,
                   size_t n = 1, bool unique = false,
                   bool first_path = false,
                   typename ToArc::Weight weight_threshold = Arc::Weight::Zero(),
-                  typename ToArc::StateId state_threshold = kNoStateId) {
-  typedef WeightConvertMapper<FromArc, ToArc> WeightMapper;
-  typedef MapFst<FromArc, ToArc, WeightMapper> ApproxFst;
-  ShortestPath(ApproxFst(fst, WeightMapper), ofst, n, unique, first_path, weight_threshold, state_threshold);
+                  typename ToArc::StateId state_threshold = fst::kNoStateId) {
+  typedef fst::WeightConvertMapper<FromArc, ToArc> WeightMapper;
+  typedef fst::MapFst<FromArc, ToArc, WeightMapper> ApproxFst;
+  fst::ShortestPath(ApproxFst(fst, WeightMapper), ofst, n, unique, first_path, weight_threshold, state_threshold);
 }
 
 }  // namespace openlat

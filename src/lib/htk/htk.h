@@ -176,19 +176,19 @@ public:
   string end_name;
 
   bool has_output;
+  const Wordlist& epsilon_symbols;
 
-  HtkLattice(): base(M_E),
+  HtkLattice(const Wordlist& _epsilon_symbols = Wordlist()): base(M_E),
                 ssyms(new SymbolTable("states")), asyms(new SymbolTable("arcs")),
                 isyms(new SymbolTable("inputs")), osyms(new SymbolTable("outputs")),
-                has_output(false)
+                has_output(false), epsilon_symbols(_epsilon_symbols)
   {
     // add epsilon symbols (!NULL in htk)
     isyms->AddSymbol("!NULL");
     osyms->AddSymbol("!NULL");
-    isyms->AddSymbol("<s>");
-    osyms->AddSymbol("<s>");
-    isyms->AddSymbol("</s>");
-    osyms->AddSymbol("</s>");
+    for (Wordlist::const_iterator it = epsilon_symbols.begin(); it != epsilon_symbols.end(); ++it) {
+      std::cerr << "add eps '" << *it << "'\n";
+    }
   };
 
   ~HtkLattice() {
@@ -239,12 +239,22 @@ public:
   }
 
   void assignInput(HtkLink *l, const string& input) {
-    l->input = isyms->AddSymbol(input);
+    size_t id = isyms->AddSymbol(input);
+    if (input.empty() or epsilon_symbols.find(input) != epsilon_symbols.end()) {
+      id = 0;
+    }
+    l->input = id; 
   }
 
   void assignOutput(HtkLink *l, const string& output) {
-    has_output = true;
-    l->output = osyms->AddSymbol(output);
+    size_t id = osyms->AddSymbol(output);
+    if (output.empty() or epsilon_symbols.find(output) != epsilon_symbols.end()) {
+      id = 0;
+    }
+    else {
+      has_output = true;
+    }
+    l->output = id;
   }
 
   int checkStartState() {
@@ -395,8 +405,8 @@ public:
    size_t num_links;
 
 
-   HtkContext(istream& _is = cin, const string &_source = "stdin"): scanner(0), is(_is), source(_source),
-       link_ptr(0), node_ptr(0), num_nodes(0), num_links(0)
+   HtkContext(istream& _is = cin, const string &_source = "stdin", const Wordlist& epsilon_symbols = Wordlist()): scanner(0), is(_is), source(_source),
+       htk(epsilon_symbols), link_ptr(0), node_ptr(0), num_nodes(0), num_links(0)
    {
       init_scanner();
       htk.source = source;

@@ -24,7 +24,17 @@
 #define openlat_NORMALIZE_H_
 
 #include <map>
+#include <fst/fst.h>
+#include <fst/matcher.h>
 #include <fst/shortest-distance.h>
+#include <fst/arc-map.h>
+#include <fst/rmepsilon.h>
+#include <fst/determinize.h>
+#include <fst/minimize.h>
+#include <fst/compose.h>
+#include <fst/encode.h>
+#include <fst/map.h>
+#include <openlat/utils.h>
 #include <openlat/query.h>
 #include <openlat/search-path.h>
 
@@ -100,9 +110,13 @@ bool VerifyProbabilistic(const fst::Fst<Arc> &fst, float delta = fst::kDelta) {
 }
 
 template<class Arc>
-void Normalize(fst::MutableFst<Arc> *fst) {
+void Normalize(fst::MutableFst<Arc> *fst, float posterior_scale = 1.0) {
   typedef typename Arc::StateId StateId;
   typedef typename Arc::Weight Weight;
+
+  if (posterior_scale != 1.0) {
+    fst::ArcMap(fst, PowerMapper<Arc>(posterior_scale));  
+  }
 
   std::vector<Weight> backward;
   fst::ShortestDistance(*fst, &backward, true);
@@ -358,6 +372,39 @@ float ConditionalExpectedNumChanges(const fst::Fst<Arc> &fst, typename Arc::Labe
 
   return expected_num_changes;
 }
+
+
+
+
+template<class Arc>
+void SetLength(const fst::Fst<Arc> &ifst, fst::MutableFst<Arc> *ofst, size_t len)
+{
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+
+  fst::VectorFst<Arc> lfst;
+  lfst.SetInputSymbols(ifst.OutputSymbols());
+  lfst.SetStart(lfst.AddState());
+  for (size_t i = 0; i < len; i++) {
+    lfst.AddState();
+    lfst.AddArc(i, Arc(-2, -2, 0, i+1));
+  }
+  lfst.SetFinal(len, 0);
+
+  typedef fst::SigmaMatcher< fst::Matcher< fst::Fst<Arc> > > SM; 
+  fst::ComposeFstOptions <Arc, SM> opts;
+
+  opts.matcher1 = new SM(ifst, fst::MATCH_NONE);
+  opts.matcher2 = new SM(lfst, fst::MATCH_INPUT, -2);
+
+  *ofst = fst::ComposeFst<Arc>(ifst, lfst, opts);
+
+  fst::Connect(ofst);
+
+}
+
+
+
 
 
 }

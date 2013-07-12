@@ -85,6 +85,24 @@ AC_TYPE_SIZE_T
 
 # Checks for library functions.
 
+# check for Python
+AM_PATH_PYTHON
+AX_PYTHON_DEVEL([>= 2.5])
+AM_CONDITIONAL([HAVE_PYTHON_DEVEL], [test x"$PYTHON_EXTRA_LIBS" != x])
+
+if [ test "x$PYTHON_EXTRA_LIBS" != x ]; then
+  AC_DEFINE([HAVE_PYTHON], [1], [Whether Python devel is available])
+  
+  # Swig python bindings
+  AX_PKG_SWIG(1.3.40, [], [ AC_MSG_WARN([SWIG is required to build python bindings]) ])
+  AX_SWIG_ENABLE_CXX
+  AX_SWIG_PYTHON
+
+  AM_CONDITIONAL([HAVE_SWIG], [test "x$SWIG" != x])
+  
+  AM_CONDITIONAL([HAVE_BOOST_PYTHON], test "x$boost_python_cpplib_avail_cv_" = xtrue)
+fi
+
 
 
 # Check for compilation options

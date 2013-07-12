@@ -58,6 +58,9 @@ int main (int argc, char *argv[]) {
   float pruning_threshold = .0;
   if (argc >= 6) pruning_threshold = convert_string<float>(argv[5]);
 
+  bool normalize = false;
+  if (argc >= 7) normalize = (string(argv[6]) == "true");
+
   vector<const MutableFst<LogArc> *> fsts;
   vector<vector <VLabel> > refs;
 
@@ -65,7 +68,7 @@ int main (int argc, char *argv[]) {
   float total_paths = .0;
   float pruned_paths = .0;
 
-  cerr << "Loading lattices\n";
+  cerr << "Loading lattices with amscale " << amscale << " and pruning threshold " << pruning_threshold << " " << "with normalization = " << normalize << "\n";
   while (getline(refs_in, reference)) {
     file_in >> filename;
 
@@ -82,9 +85,13 @@ int main (int argc, char *argv[]) {
     if (pruning_threshold != 0) {
       PruneArcs(fst, pruning_threshold, 1e100);
       Connect(fst);
+      if (normalize) Normalize(fst);
       float n_paths = PathCount(*fst); 
       if (n_paths < 1) {
         cerr << "Prunnig to heavy for lattice '" << filename << "'. Zero paths remain after the pruning.\n";
+      }
+      else {
+        cerr << "lattice '" << filename << "' has " << n_paths << " paths\n";
       }
       pruned_paths += n_paths; 
     }

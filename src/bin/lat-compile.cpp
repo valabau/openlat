@@ -44,6 +44,8 @@ int main(int argc, char *argv[]) {
   const string stdio_str("-");
   const char * input = stdio_str.c_str();
   const char *output = stdio_str.c_str();
+  const char *epsilons_fn = 0;
+  Wordlist epsilons;
   bool do_standard = false;
 
   if (argc >= 2 and argv[1][0] == '-' and argv[1][1] == 's') {
@@ -54,10 +56,21 @@ int main(int argc, char *argv[]) {
 
   if (argc >= 2) input = argv[1];
   if (argc >= 3) output = argv[2];
+  if (argc >= 4) epsilons_fn = argv[3];
+
+  
+  if (epsilons_fn) {
+    std::ifstream epsilons_s(epsilons_fn);
+    std::string line;
+    while (std::getline(epsilons_s, line)) {
+      epsilons.insert(trim(line));
+    }
+  }
+  
 
   if (do_standard) {
     ifilter is(input);
-    MutableFst<StdArc> *fst = ReadHtkStdArc(is, input);
+    MutableFst<StdArc> *fst = ReadHtkStdArc(is, input, epsilons);
     Verify(*fst);
 
     FstWriteOptions opts(output);
@@ -68,7 +81,7 @@ int main(int argc, char *argv[]) {
   }
   else {
     ifilter is(input);
-    MutableFst<LogArc> *fst = ReadHtkLogArc(is, input);
+    MutableFst<LogArc> *fst = ReadHtkLogArc(is, input, epsilons);
     Verify(*fst);
 
     FstWriteOptions opts(output);

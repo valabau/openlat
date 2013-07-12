@@ -22,14 +22,13 @@
 
 #include "htk/htk.h"
 #include <openlat/htk-compiler.h>
-
-using namespace fst;
+#include <set>
 
 namespace openlat {
 
 template <typename Arc>
-MutableFst<Arc>* ReadHtk(std::istream &istrm, const std::string &source) {
-  htk::HtkContext context(istrm, source);
+MutableFst<Arc>* ReadHtk(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols) {
+  htk::HtkContext context(istrm, source, epsilon_symbols);
   htk::parser parser(&context);
 
   int status = parser.parse();
@@ -40,13 +39,13 @@ MutableFst<Arc>* ReadHtk(std::istream &istrm, const std::string &source) {
   return context.htk.CreateFst<Arc>();
 }
 
-fst::MutableFst<fst::LogArc>* ReadHtkLogArc(std::istream &istrm, const std::string &source) { return ReadHtk<fst::LogArc>(istrm, source); }
-fst::MutableFst<fst::StdArc>* ReadHtkStdArc(std::istream &istrm, const std::string &source) { return ReadHtk<fst::StdArc>(istrm, source); }
-fst::MutableFst<LogLinearArc>* ReadHtkLogLinearArc(std::istream &istrm, const std::string &source) { return ReadHtk<LogLinearArc>(istrm, source); }
+fst::MutableFst<fst::LogArc>* ReadHtkLogArc(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols) { return ReadHtk<fst::LogArc>(istrm, source, epsilon_symbols); }
+fst::MutableFst<fst::StdArc>* ReadHtkStdArc(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols) { return ReadHtk<fst::StdArc>(istrm, source, epsilon_symbols); }
+fst::MutableFst<LogLinearArc>* ReadHtkLogLinearArc(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols) { return ReadHtk<LogLinearArc>(istrm, source, epsilon_symbols); }
 
 template <typename Arc>
-Lattice<Arc>* ReadHtkLattice(std::istream &istrm, const std::string &source) {
-  htk::HtkContext context(istrm, source);
+Lattice<Arc>* ReadHtkLattice(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols) {
+  htk::HtkContext context(istrm, source, epsilon_symbols);
   htk::parser parser(&context);
 
   int status = parser.parse();
@@ -58,9 +57,9 @@ Lattice<Arc>* ReadHtkLattice(std::istream &istrm, const std::string &source) {
 }
 
 
-Lattice<fst::LogArc>* ReadHtkLogLattice(std::istream &istrm, const std::string &source) { return ReadHtkLattice<fst::LogArc>(istrm, source); }
-Lattice<fst::StdArc>* ReadHtkStdLattice(std::istream &istrm, const std::string &source) { return ReadHtkLattice<fst::StdArc>(istrm, source); }
-Lattice<LogLinearArc>* ReadHtkLogLinearLattice(std::istream &istrm, const std::string &source) { return ReadHtkLattice<LogLinearArc>(istrm, source); }
+Lattice<fst::LogArc>* ReadHtkLogLattice(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols) { return ReadHtkLattice<fst::LogArc>(istrm, source, epsilon_symbols); }
+Lattice<fst::StdArc>* ReadHtkStdLattice(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols) { return ReadHtkLattice<fst::StdArc>(istrm, source, epsilon_symbols); }
+Lattice<LogLinearArc>* ReadHtkLogLinearLattice(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols) { return ReadHtkLattice<LogLinearArc>(istrm, source, epsilon_symbols); }
 
 
 template <typename Arc>
