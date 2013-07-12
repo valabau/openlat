@@ -186,9 +186,6 @@ public:
     // add epsilon symbols (!NULL in htk)
     isyms->AddSymbol("!NULL");
     osyms->AddSymbol("!NULL");
-    for (Wordlist::const_iterator it = epsilon_symbols.begin(); it != epsilon_symbols.end(); ++it) {
-      std::cerr << "add eps '" << *it << "'\n";
-    }
   };
 
   ~HtkLattice() {
