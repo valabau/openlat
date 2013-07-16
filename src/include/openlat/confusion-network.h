@@ -313,10 +313,15 @@ void ComputeMinimumBayesRiskTable(const fst::Fst<Arc> &fst, std::vector< std::ma
 
     if (fst.Final(s) != W::Zero()) {
       for (typename PosMap::const_iterator mit = forward[s].begin(); mit != forward[s].end(); ++mit) {
-        size_t position = mit->first;
+        size_t position = mit->first + 1;
         if (table.size() < position + 1) table.resize(position + 1);
         W post = fst::Times(mit->second, backward[s]);
-        table[position].insert(std::make_pair(fst::kNoLabel, post));
+        typename Arc::Label ilabel = fst::kNoLabel;
+        if (table[position].find(ilabel) != table[position].end()) {
+          table[position][ilabel] = fst::Plus(table[position][ilabel], post);
+        } else {
+          table[position].insert(make_pair(ilabel, post));
+        }
       }
     }
 
@@ -324,12 +329,15 @@ void ComputeMinimumBayesRiskTable(const fst::Fst<Arc> &fst, std::vector< std::ma
 
   typedef std::map<typename Arc::Label, W> WordMap;
   typedef std::vector<WordMap> Table;
-  for (typename Table::iterator tit = table.begin(); tit < table.end(); ++tit) {
+  size_t s = 0;
+  for (typename Table::iterator tit = table.begin(); tit < table.end(); ++tit, ++s) {
     W sum = W::Zero();
     for (typename WordMap::const_iterator it = tit->begin(); it != tit->end(); ++it) {
       sum = fst::Plus(sum, it->second);
     }
-    for (typename WordMap::iterator it = tit->begin(); it != tit->end(); ++it) it->second = fst::Divide(it->second, sum);
+    for (typename WordMap::iterator it = tit->begin(); it != tit->end(); ++it) {
+      it->second = fst::Divide(it->second, sum);
+    }
   }
 
 }
@@ -356,27 +364,27 @@ void PositionPosteriorNetwork(const fst::Fst<Arc> &fst, fst::MutableFst<Arc> *of
   ofst->SetInputSymbols(fst.InputSymbols());
   ofst->SetOutputSymbols(fst.OutputSymbols());
 
-  // iterate over all nodes
-  for (size_t n = 0; n < table.size(); n++) {
-    int count = 0;
-    for (typename WordMap::const_iterator it = table[n].begin(); it != table[n].end(); ++it) {
-      if (it->first != fst::kNoLabel) count++;
-    }
-    if (n > 0 and count == 0) break;
-    ofst->AddState();
-  }
   ofst->SetStart(0);
+  for (size_t s = 0; s < table.size(); s++) ofst->AddState();
+  ofst->SetFinal(table.size() - 1, W::One());
 
-  for (size_t s = 0; s < NumStates(*ofst) - 1; s++) {
-    for (typename WordMap::const_iterator it = table[s+1].begin(); it != table[s+1].end(); ++it) {
-      if (it->first == fst::kNoLabel) {
-        ofst->SetFinal(s, it->second);
-      }
-      else {
-        ofst->AddArc(s, Arc(it->first, it->first, it->second, s+1));
+  for (size_t s = 0; s < table.size(); s++) {
+    if (not table[s].empty()) {
+      for (typename WordMap::const_iterator it = table[s].begin(); it != table[s].end(); ++it) {
+        //std::string  str = fst.InputSymbols()->Find(it->first);
+        //std::cerr << s << ": " << str << " = " << exp(-it->second.Value()) << std::endl;
+
+        if (it->first == fst::kNoLabel) {
+          ofst->SetFinal(s - 1, it->second);
+        }
+        else {
+          ofst->AddArc(s - 1, Arc(it->first, it->first, it->second, s));
+        }
       }
     }
   }
+
+  fst::Connect(ofst);
 }
 
 
