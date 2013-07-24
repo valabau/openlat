@@ -251,6 +251,7 @@ public:
     int pos = (s == 0)?-1:((s-1) / refs.size());
     int ls = (query.label.sample == size_t(-1))?-1:query.label.sample;
 
+    //std::cerr << e_c << " ";
     recomputeErrors();
     end_time = clock();
     std::cerr << pos;
