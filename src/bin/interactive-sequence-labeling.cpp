@@ -260,6 +260,10 @@ int main (int argc, char *argv[]) {
                              ConditionalExpectedNumChangesLabelScorer<LogArc, ShortestHammingPathFunc<LogArc> > >, sort_pool_by_score,
                              LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
   }
+  else if (method == "active-label-sequential") {
+    system = new LocalSystem<LogArc, LogConstraintFilter, RecomputeSequentialExpectation<LogArc, LogConstraintFilter>, sort_pool_by_label,
+                             LeastConfidentSampleScorer<LogArc>, sort_sample_score_by_score>(fsts);
+  }
 
   /* Active systems. Query strategies at label level. More is less */
   else if (method == "active-label-entropy-m") {
