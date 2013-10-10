@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
     cerr << "fst is probabilistic = " << VerifyProbabilistic(*fst, 1e-4) << "\n";
 
     float entropy = Entropy(*fst);
-    cerr << "ent = " << entropy << "; ppl = " << exp(entropy) << "\n";
+    cerr << "ent = " << -entropy << "; ppl = " << exp(-entropy) << "\n";
 
     FstWriteOptions opts(output);
     ofilter os(output);

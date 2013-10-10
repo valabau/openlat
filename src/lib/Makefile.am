@@ -4,8 +4,10 @@ AM_CPPFLAGS = $(WARNING_CXXFLAGS) $(COMPILANCE_CXXFLAGS) -I$(top_srcdir)/src/inc
 #AM_LDFLAGS = -lltdl
 AM_LDFLAGS = $(BOOST_LDFLAGS) $(BOOST_IOSTREAMS_LIB)
 
-BUILT_SOURCES = htk/lex.cpp htk/yacc.cpp htk/yacc.hpp htk/location.hh htk/position.hh htk/stack.hh
-CLEANFILES    = htk/lex.cpp htk/yacc.cpp htk/yacc.hpp htk/location.hh htk/position.hh htk/stack.hh htk/yacc.report
+BUILT_SOURCES  = htk/htk-lex.cpp htk/htk-yacc.cpp htk/yacc.hpp htk/location.hh htk/position.hh htk/stack.hh
+CLEANFILES     = htk/htk-lex.cpp htk/htk-yacc.cpp htk/yacc.hpp htk/location.hh htk/position.hh htk/stack.hh htk/yacc.report
+#BUILT_SOURCES += thot/thot-lex.cpp thot/thot-yacc.cpp thot/yacc.hpp thot/location.hh thot/position.hh thot/stack.hh
+#CLEANFILES    += thot/thot-lex.cpp thot/thot-yacc.cpp thot/yacc.hpp thot/location.hh thot/position.hh thot/stack.hh thot/yacc.report
 
 # yacc flags
 AM_YFLAGS = --report=all 
@@ -16,17 +18,29 @@ include_HEADERS =
 
 lib_LTLIBRARIES = libopenlat.la
 
-libopenlat_la_SOURCES  = htk/lex.cpp htk/yacc.cpp htk-compiler.cpp iofilter.cpp sigsegv.cpp
+libopenlat_la_SOURCES  = htk/htk-lex.cpp htk/htk-yacc.cpp htk-compiler.cpp thot-compiler.cpp iofilter.cpp sigsegv.cpp
 #libopenlat_la_LIBADD =  -lfst  -ldl -lz -lbz2 
 
-htk/yacc.cpp htk/yacc.hpp htk/location.hh htk/position.hh htk/stack.hh: $(srcdir)/htk/htk.y
-	$(YACC) $(YFLAGS) $(AM_YFLAGS) --output=htk/yacc.cpp --defines=htk/yacc.hpp $(srcdir)/htk/htk.y --report-file=htk/yacc.report 
+# htk parser and compiler
+htk/htk-yacc.cpp htk/yacc.hpp htk/location.hh htk/position.hh htk/stack.hh: $(srcdir)/htk/htk.y
+	$(YACC) $(YFLAGS) $(AM_YFLAGS) --output=htk/htk-yacc.cpp --defines=htk/yacc.hpp $(srcdir)/htk/htk.y --report-file=htk/yacc.report 
 
-htk/lex.o: htk/lex.cpp
-	$(LIBTOOL) --mode=compile $(GCC)  $(CXXFLAGS) $(AM_CXXFLAGS) -c htk/lex.cpp
+htk/htk-lex.o: htk/htk-lex.cpp
+	$(LIBTOOL) --mode=compile $(GCC)  $(CXXFLAGS) $(AM_CXXFLAGS) -c htk/htk-lex.cpp
 
-htk/lex.cpp: $(srcdir)/htk/htk.l
-	$(LEX) $(LFLAGS) $(AM_LFLAGS) --outfile=htk/lex.cpp $(srcdir)/htk/htk.l 
+htk/htk-lex.cpp: $(srcdir)/htk/htk.l
+	$(LEX) $(LFLAGS) $(AM_LFLAGS) --outfile=htk/htk-lex.cpp $(srcdir)/htk/htk.l 
+
+
+## thot parser and compiler
+#thot/thot-yacc.cpp thot/yacc.hpp thot/location.hh thot/position.hh thot/stack.hh: $(srcdir)/thot/thot.y
+#	$(YACC) $(YFLAGS) $(AM_YFLAGS) --output=thot/thot-yacc.cpp --defines=thot/yacc.hpp $(srcdir)/thot/thot.y --report-file=thot/yacc.report 
+#
+#thot/thot-lex.o: thot/thot-lex.cpp
+#	$(LIBTOOL) --mode=compile $(GCC)  $(CXXFLAGS) $(AM_CXXFLAGS) -c thot/thot-lex.cpp
+#
+#thot/thot-lex.cpp: $(srcdir)/thot/thot.l
+#	$(LEX) $(LFLAGS) $(AM_LFLAGS) --outfile=thot/thot-lex.cpp $(srcdir)/thot/thot.l 
 
 
 ### Python extension ###

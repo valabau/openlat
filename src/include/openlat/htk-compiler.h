@@ -32,9 +32,9 @@ namespace openlat {
 
 typedef std::set<std::string> Wordlist;
 
-fst::MutableFst<fst::LogArc>*   ReadHtkLogArc(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols = Wordlist());
-fst::MutableFst<fst::StdArc>*   ReadHtkStdArc(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols = Wordlist());
-fst::MutableFst<LogLinearArc>*  ReadHtkLogLinearArc(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols = Wordlist());
+fst::MutableFst<fst::LogArc>*   ReadHtkLogArc(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols = Wordlist(), int debug_level = -1);
+fst::MutableFst<fst::StdArc>*   ReadHtkStdArc(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols = Wordlist(), int debug_level = -1);
+fst::MutableFst<LogLinearArc>*  ReadHtkLogLinearArc(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols = Wordlist(), int debug_level = -1);
 
 template<typename Arc>
 class Lattice {
@@ -53,9 +53,9 @@ class Lattice {
   const std::vector<std::string>& getFeatureNames() const { return _feature_names; }
 };
 
-Lattice<fst::LogArc>*  ReadHtkLogLattice(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols = Wordlist());
-Lattice<fst::StdArc>*  ReadHtkStdLattice(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols = Wordlist());
-Lattice<LogLinearArc>* ReadHtkLogLinearLattice(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols = Wordlist());
+Lattice<fst::LogArc>*  ReadHtkLogLattice(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols = Wordlist(), int debug_level = -1);
+Lattice<fst::StdArc>*  ReadHtkStdLattice(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols = Wordlist(), int debug_level = -1);
+Lattice<LogLinearArc>* ReadHtkLogLinearLattice(std::istream &istrm, const std::string &source, const Wordlist& epsilon_symbols = Wordlist(), int debug_level = -1);
 
 }  // namespace fst
 

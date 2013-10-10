@@ -110,6 +110,39 @@ bool VerifyProbabilistic(const fst::Fst<Arc> &fst, float delta = fst::kDelta) {
 }
 
 template<class Arc>
+typename Arc::Weight NormalizePosteriors(fst::MutableFst<Arc> *fst, float posterior_scale) {
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+
+  fst::ArcMap(fst, PowerMapper<Arc>(posterior_scale));  
+
+  std::vector<Weight> forward, backward;
+  fst::ShortestDistance(*fst, &forward, false);
+  fst::ShortestDistance(*fst, &backward, true);
+
+  typename Arc::Weight mass = backward[fst->Start()];
+
+  for (fst::StateIterator<fst::MutableFst<Arc> > siter(*fst); !siter.Done(); siter.Next()) {
+    StateId s = siter.Value();
+    typename Arc::Weight fwd_mass = forward[s];
+
+    // normalize arcs
+    for (fst::MutableArcIterator < fst::MutableFst<Arc> > aiter(fst, s); !aiter.Done(); aiter.Next()) {
+      Arc arc = aiter.Value();
+      arc.weight = fst::Divide(fst::Times(fwd_mass, fst::Times(arc.weight, backward[arc.nextstate])), mass);
+      aiter.SetValue(arc);
+    }
+
+    // normalize final probability
+    if (fst->Final(s) != Weight::Zero()) {
+      fst->SetFinal(s, fst::Divide(fst::Times(fwd_mass, fst->Final(s)), mass));
+    }
+  }
+
+  return mass;
+}
+
+template<class Arc>
 void Normalize(fst::MutableFst<Arc> *fst, float posterior_scale = 1.0) {
   typedef typename Arc::StateId StateId;
   typedef typename Arc::Weight Weight;

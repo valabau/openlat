@@ -135,7 +135,7 @@ T convert_string(const string& text) {
     if (text == "inf") return std::numeric_limits<T>::infinity();
     else if (text == "-inf") return -std::numeric_limits<T>::infinity();
     else if (text == "nan") return -std::numeric_limits<T>::quiet_NaN();
-    assert_bt(false, "Unknown error. string = '" << text << "'");
+//    else assert_bt(true, "Unknown error. string = '" << text << "'");
   }
   return ret;
 }
