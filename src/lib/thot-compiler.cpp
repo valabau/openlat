@@ -33,7 +33,9 @@ class ThotParser {
   int debug_level_;
   size_t n_arcs_;
 public:
-  ThotParser(ThotContext *context): context_(context), debug_level_(0), n_arcs_(0) { }
+  ThotParser(ThotContext *context): context_(context), debug_level_(0), n_arcs_(0) {
+    context_->thot.wsyms->AddSymbol("!NULL", 0);
+  }
   void set_debug_level(int debug_level) { debug_level_ = debug_level;  }
   int parse() {
     string line, superfinal = "***SUPERFINALSTATE***";

@@ -46,19 +46,52 @@ int main(int argc, char *argv[]) {
   const string stdio_str("-");
   const char * input = stdio_str.c_str();
   const char *output = stdio_str.c_str();
-  bool do_determinization = false;
+  bool do_determinization = false, verbosity = false, show_help = false;
   float amscale = 1.0;
 
-  if (argc >= 2 and string(argv[1]) == "-i") {
-    do_determinization = true;
-    argc--;
-    argv[1] = argv[0];
-    argv++;
+
+  int c;
+  opterr = 0;
+  while ((c = getopt(argc, argv, "da:hv:")) != -1) {
+    switch (c) {
+      case 'd':
+        do_determinization = true;
+        break;
+      case 'a':
+        amscale = convert_string<float>(optarg);
+        break;
+      case 'v':
+        verbosity = convert_string<int>(optarg);
+        break;
+      case 'h':
+        show_help = true;
+        break;
+      case '?':
+        if (optopt == 'c')
+          fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+        else if (isprint (optopt))
+          fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+        else
+          fprintf (stderr,
+                   "Unknown option character `\\x%x'.\n",
+                   optopt);
+        return 1;
+      default:
+        abort();
+        break;
+    }
   }
 
-  if (argc >= 2) input = argv[1];
-  if (argc >= 3) output = argv[2];
-  if (argc >= 4) amscale = convert_string<float>(argv[3]);
+  if (show_help) {
+    cerr << "Usage: " << argv[0] << " [-d] [-a amscale] [-h] [-v int] [input-file] [output-file]\n";
+    return 0;
+  }
+
+  if (optind < argc) input = argv[optind++];
+  if (optind < argc) output = argv[optind++];
+
+  if (verbosity and do_determinization) cerr << "Determinize\n";
+
   {
     ifilter is(input);
     MutableFst<LogArc> *fst = MutableFst<LogArc>::Read(is, FstReadOptions(input));

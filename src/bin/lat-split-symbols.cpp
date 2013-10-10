@@ -25,6 +25,8 @@
 #include <cmath>
 #include <memory>
 #include <sstream>
+#include <unistd.h>
+
 
 #include <fst/fstlib.h>
 #include <fst/mutable-fst.h>
@@ -71,22 +73,57 @@ int main(int argc, char *argv[]) {
   const string stdio_str("-");
   const char * input = stdio_str.c_str();
   const char *output = stdio_str.c_str();
+  int verbosity = 0;
+  bool show_help = false;
 
   string separator = "_";
   string *space = 0;
 
-  if (argc >= 2 and argv[1][0] == '-' and argv[1][1] == 's') {
-    separator = argv[2];
-    string _space(argv[3]);
-    if (not _space.empty()) space = new string(argv[3]);
-    argc-=3;
-    argv+=3;
+  int c;
+  opterr = 0;
+  while ((c = getopt(argc, argv, "s:a:v:h")) != -1) {
+    switch (c) {
+      case 's':
+        separator = optarg;
+        break;
+      case 'a':
+        space = new string(optarg);
+        break;
+      case 'v':
+        verbosity = convert_string<int>(optarg);
+        break;
+      case 'h':
+        show_help = true;
+        break;
+      case '?':
+        if (optopt == 'c')
+          fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+        else if (isprint (optopt))
+          fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+        else
+          fprintf (stderr,
+                   "Unknown option character `\\x%x'.\n",
+                   optopt);
+        return 1;
+      default:
+        abort();
+        break;
+    }
   }
 
+  if (show_help) {
+    cerr << "Usage: " << argv[0] << " [-s separator_string ] [-a string_to_append_at_end ] [-h] [-v int] [input-file] [output-file]\n";
+    return 0;
+  }
 
-  if (argc >= 2) input = argv[1];
-  if (argc >= 3) output = argv[2];
+  if (optind < argc) input = argv[optind++];
+  if (optind < argc) output = argv[optind++];
 
+  if (verbosity) {
+    cerr << "separator = \"" << separator << "\"";
+    if (space) cerr << " add \"" << *space << "\" at the end";
+    cerr << "\n";
+  }
 
   {
     ifilter is(input);

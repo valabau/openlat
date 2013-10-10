@@ -49,8 +49,8 @@ void SplitSymbols(const fst::Fst<Arc> &fst, fst::MutableFst<Arc> *ofst,
   fst::SymbolTable isyms("inputs");
   fst::SymbolTable osyms("outputs");
 
-  if (fst.Properties(fst::kIEpsilons, true)) isyms.AddSymbol(fst.InputSymbols()->Find(int64(0)));
-  if (fst.Properties(fst::kOEpsilons, true)) osyms.AddSymbol(fst.OutputSymbols()->Find(int64(0)));
+  isyms.AddSymbol(fst.InputSymbols()->Find(int64(0)));
+  osyms.AddSymbol(fst.OutputSymbols()->Find(int64(0)));
 
 
   typedef std::tr1::unordered_map<StateId, StateId> StateMap;
