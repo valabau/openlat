@@ -42,20 +42,52 @@ using namespace openlat;
 
 typedef fst::VectorFst<fst::LogArc> LogVectorFst;
 
+template <typename Arc>
+void perform_normalization(const char* input, const char* output, float amscale, bool do_determinization) {
+  {
+    ifilter is(input);
+    MutableFst <Arc> *fst = MutableFst <Arc> ::Read(is, FstReadOptions(input));
+    Verify (*fst);
+    if (amscale != 1.0) {
+      ArcMap(fst, PowerMapper <Arc> (amscale));
+    }
+    if (do_determinization) {
+      MutableFst <Arc> *ofst = new VectorFst<Arc>();
+      DeterminizeAndNormalize(*fst, ofst);
+      swap(fst, ofst);
+      delete ofst;
+    } else {
+      Normalize(fst);
+    }
+    cerr << "fst is probabilistic = " << VerifyProbabilistic(*fst, 1e-4)
+        << "\n";
+    float entropy = Entropy(*fst);
+    cerr << "ent = " << -entropy << "; ppl = " << exp(-entropy) << "\n";
+    FstWriteOptions opts(output);
+    ofilter os(output);
+    fst->Write(os, opts);
+    delete fst;
+  }
+}
+
 int main(int argc, char *argv[]) {
   const string stdio_str("-");
   const char * input = stdio_str.c_str();
   const char *output = stdio_str.c_str();
   bool do_determinization = false, verbosity = false, show_help = false;
+  bool is_std_fst = false;
   float amscale = 1.0;
 
 
   int c;
   opterr = 0;
-  while ((c = getopt(argc, argv, "da:hv:")) != -1) {
+  while ((c = getopt(argc, argv, "da:shv:")) != -1) {
     switch (c) {
       case 'd':
         do_determinization = true;
+        break;
+      case 's':
+        is_std_fst = true;
         break;
       case 'a':
         amscale = convert_string<float>(optarg);
@@ -90,36 +122,14 @@ int main(int argc, char *argv[]) {
   if (optind < argc) input = argv[optind++];
   if (optind < argc) output = argv[optind++];
 
-  if (verbosity and do_determinization) cerr << "Determinize\n";
+  if (verbosity && do_determinization)
+    cerr << "Determinize\n";
 
-  {
-    ifilter is(input);
-    MutableFst<LogArc> *fst = MutableFst<LogArc>::Read(is, FstReadOptions(input));
-    Verify(*fst);
-
-    if (amscale != 1.0) {
-      ArcMap(fst, PowerMapper<LogArc>(amscale));
-    }
-
-    if (do_determinization) {
-      MutableFst<LogArc> *ofst = new VectorFst<LogArc>();
-      DeterminizeAndNormalize(*fst, ofst);
-      swap(fst, ofst);
-      delete ofst;
-    }
-    else {
-      Normalize(fst);
-    }
-    cerr << "fst is probabilistic = " << VerifyProbabilistic(*fst, 1e-4) << "\n";
-
-    float entropy = Entropy(*fst);
-    cerr << "ent = " << -entropy << "; ppl = " << exp(-entropy) << "\n";
-
-    FstWriteOptions opts(output);
-    ofilter os(output);
-    fst->Write(os, opts);
-
-    delete fst;
+  if (is_std_fst) {
+    perform_normalization<StdArc>(input, output, amscale, do_determinization);
+  }
+  else {
+    perform_normalization<LogArc>(input, output, amscale, do_determinization);
   }
 
   return EXIT_SUCCESS;

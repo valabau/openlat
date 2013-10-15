@@ -173,7 +173,7 @@ void Normalize(fst::MutableFst<Arc> *fst, float posterior_scale = 1.0) {
 }
 
 template<class Arc>
-void DeterminizeAndNormalize(const fst::Fst<Arc> &ifst,
+void OldDeterminizeAndNormalize(const fst::Fst<Arc> &ifst,
                              fst::MutableFst<Arc> *ofst,
                              const fst::DeterminizeOptions<Arc> &opts
                              = fst::DeterminizeOptions<Arc>())
@@ -195,6 +195,110 @@ void DeterminizeAndNormalize(const fst::Fst<Arc> &ifst,
 
   fst::Decode(ofst, encode_mapper);
   Normalize(ofst);
+}
+
+template<class Arc>
+void NormalizeOverMinimalFst(const fst::Fst<Arc> &ifst,
+                             fst::MutableFst<Arc> *ofst,
+                             float posterior_scale = 1.0)
+{
+
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+  typedef std::pair<StateId, std::vector<StateId> > MergedState;
+
+  fst::VectorFst<Arc> fst(ifst);
+
+  fst::RmEpsilon(&fst);
+  fst::TopSort(&fst);
+  fst::TopSort(ofst);
+
+  if (posterior_scale != 1.0) {
+    fst::ArcMap(&fst, PowerMapper<Arc>(posterior_scale));
+  }
+
+  std::vector<Weight> backward;
+  fst::ShortestDistance(fst, &backward, true);
+
+  for (fst::StateIterator<fst::MutableFst<Arc> > siter(fst); !siter.Done(); siter.Next()) {
+    StateId s = siter.Value();
+
+    // normalize arcs
+    for (fst::MutableArcIterator < fst::MutableFst<Arc> > aiter(&fst, s); !aiter.Done(); aiter.Next()) {
+      Arc arc = aiter.Value();
+      arc.weight = fst::Times(arc.weight, backward[arc.nextstate]);
+      aiter.SetValue(arc);
+    }
+
+    // normalize final probability
+    if (fst.Final(s) != Weight::Zero()) {
+      fst.SetFinal(s, fst::Divide(fst.Final(s), backward[s]));
+    }
+  }
+
+  size_t max_state_id = 0;
+  for (fst::StateIterator < fst::Fst<Arc> > siter(*ofst); !siter.Done(); siter.Next()) {
+    if (siter.Value() > 0) max_state_id = siter.Value();
+  }
+
+  std::vector< std::set<StateId> > brotherhood(max_state_id + 1);
+  brotherhood[ofst->Start()].insert(fst.Start());
+
+  for (fst::StateIterator < fst::MutableFst<Arc> > siter(*ofst); !siter.Done(); siter.Next()) {
+    Weight norm = Weight::Zero();
+    for (fst::MutableArcIterator < fst::MutableFst<Arc> > daiter(ofst, siter.Value()); !daiter.Done(); daiter.Next()) {
+      Arc darc = daiter.Value();
+      darc.weight = Weight::Zero();
+
+      const std::set<StateId> &brothers = brotherhood[siter.Value()];
+      for (typename std::set<StateId>::const_iterator sit = brothers.begin(); sit != brothers.end(); ++sit) {
+        for (fst::ArcIterator < fst::Fst<Arc> > aiter(fst, *sit); !aiter.Done(); aiter.Next()) {
+          const Arc &arc = aiter.Value();
+          if (arc.ilabel == darc.ilabel) {
+            darc.weight = fst::Plus(darc.weight, arc.weight);
+            brotherhood[darc.nextstate].insert(arc.nextstate);
+          }
+        }
+      }
+      norm = fst::Plus(norm, darc.weight);
+      daiter.SetValue(darc);
+    }
+
+    for (fst::MutableArcIterator < fst::MutableFst<Arc> > daiter(ofst, siter.Value()); !daiter.Done(); daiter.Next()) {
+      Arc darc = daiter.Value();
+      darc.weight = fst::Divide(darc.weight, norm);
+      daiter.SetValue(darc);
+    }
+
+    brotherhood[siter.Value()].clear();
+  }
+}
+
+template<class Arc>
+void DeterminizeAndNormalize(const fst::Fst<Arc> &ifst,
+                             fst::MutableFst<Arc> *ofst,
+                             float posterior_scale = 1.0,
+                             const fst::DeterminizeOptions<fst::StdArc> &opts
+                             = fst::DeterminizeOptions<fst::StdArc>())
+{
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+
+  {
+    fst::VectorFst<fst::StdArc> fst;
+
+    fst::Map(ifst, &fst, fst::RmWeightMapper<Arc, fst::StdArc>());
+
+    fst::RmEpsilon(&fst);
+
+    fst::VectorFst<fst::StdArc> dfst;
+    fst::Determinize(fst, &dfst, opts);
+    fst::Minimize(&dfst);
+
+    fst::Map(dfst, ofst, fst::RmWeightMapper<fst::StdArc, Arc>());
+  }
+
+  NormalizeOverMinimalFst(ifst, ofst, posterior_scale);
 }
 
 
