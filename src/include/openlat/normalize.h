@@ -213,26 +213,35 @@ void NormalizeOverMinimalFst(const fst::Fst<Arc> &ifst,
   fst::TopSort(&fst);
   fst::TopSort(ofst);
 
-  if (posterior_scale != 1.0) {
-    fst::ArcMap(&fst, PowerMapper<Arc>(posterior_scale));
-  }
+//  if (posterior_scale != 1.0) {
+//    fst::ArcMap(&fst, PowerMapper<Arc>(posterior_scale));
+//  }
 
-  std::vector<Weight> backward;
-  fst::ShortestDistance(fst, &backward, true);
+  Normalize(&fst, posterior_scale);
 
-  for (fst::StateIterator<fst::MutableFst<Arc> > siter(fst); !siter.Done(); siter.Next()) {
-    StateId s = siter.Value();
 
-    // normalize arcs
-    for (fst::MutableArcIterator < fst::MutableFst<Arc> > aiter(&fst, s); !aiter.Done(); aiter.Next()) {
-      Arc arc = aiter.Value();
-      arc.weight = fst::Times(arc.weight, backward[arc.nextstate]);
-      aiter.SetValue(arc);
-    }
+  {
+    std::vector<Weight> forward, backward;
+    fst::ShortestDistance(fst, &forward, false);
+    fst::ShortestDistance(fst, &backward, true);
 
-    // normalize final probability
-    if (fst.Final(s) != Weight::Zero()) {
-      fst.SetFinal(s, fst::Divide(fst.Final(s), backward[s]));
+    for (fst::StateIterator<fst::MutableFst<Arc> > siter(fst); !siter.Done(); siter.Next()) {
+      StateId s = siter.Value();
+//      cerr << "state " << s << " fwd = " << exp(-forward[s].Value()) << " bwd = " << exp(-backward[s].Value()) << "\n";
+
+      // normalize arcs
+      for (fst::MutableArcIterator < fst::MutableFst<Arc> > aiter(&fst, s); !aiter.Done(); aiter.Next()) {
+        Arc arc = aiter.Value();
+//        cerr << "arc " << s << " -> " << arc.nextstate << " w = " << exp(-arc.weight.Value());
+        arc.weight = fst::Times(forward[s], fst::Times(arc.weight, backward[arc.nextstate]));
+//        cerr << " fwb = " << exp(-arc.weight.Value()) << "\n";
+        aiter.SetValue(arc);
+      }
+
+      // normalize final probability
+      if (fst.Final(s) != Weight::Zero()) {
+        fst.SetFinal(s, fst::Divide(fst.Final(s), backward[s]));
+      }
     }
   }
 
@@ -251,7 +260,9 @@ void NormalizeOverMinimalFst(const fst::Fst<Arc> &ifst,
       darc.weight = Weight::Zero();
 
       const std::set<StateId> &brothers = brotherhood[siter.Value()];
+//      cerr << siter.Value();
       for (typename std::set<StateId>::const_iterator sit = brothers.begin(); sit != brothers.end(); ++sit) {
+//        cerr << " " << *sit;
         for (fst::ArcIterator < fst::Fst<Arc> > aiter(fst, *sit); !aiter.Done(); aiter.Next()) {
           const Arc &arc = aiter.Value();
           if (arc.ilabel == darc.ilabel) {
@@ -260,6 +271,7 @@ void NormalizeOverMinimalFst(const fst::Fst<Arc> &ifst,
           }
         }
       }
+//      cerr << endl;
       norm = fst::Plus(norm, darc.weight);
       daiter.SetValue(darc);
     }
@@ -270,7 +282,7 @@ void NormalizeOverMinimalFst(const fst::Fst<Arc> &ifst,
       daiter.SetValue(darc);
     }
 
-    brotherhood[siter.Value()].clear();
+//    brotherhood[siter.Value()].clear();
   }
 }
 
