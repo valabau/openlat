@@ -114,7 +114,11 @@ int main(int argc, char *argv[]) {
     ifilter is(input);
     MutableFst<StdArc> *fst = 0;
     if (is_thot_wgp) {
+#if HAVE_THOT
       fst = ReadThotStdArc(is, input, epsilons, verbosity);
+#else
+      cerr << "ERROR: openlat has not been compiled with Thot support.\n";
+#endif
     }
     else {
       fst = ReadHtkStdArc(is, input, epsilons, verbosity);
@@ -131,7 +135,11 @@ int main(int argc, char *argv[]) {
     ifilter is(input);
     MutableFst<LogArc> *fst = 0;
     if (is_thot_wgp) {
+#if HAVE_THOT
       fst = ReadThotLogArc(is, input, epsilons, verbosity);
+#else
+      cerr << "ERROR: openlat has not been compiled with Thot support.\n";
+#endif
     }
     else {
       fst = ReadHtkLogArc(is, input, epsilons, verbosity);

@@ -18,7 +18,10 @@ include_HEADERS =
 
 lib_LTLIBRARIES = libopenlat.la
 
-libopenlat_la_SOURCES  = htk/htk-lex.cpp htk/htk-yacc.cpp htk-compiler.cpp thot-compiler.cpp iofilter.cpp sigsegv.cpp
+libopenlat_la_SOURCES  = htk/htk-lex.cpp htk/htk-yacc.cpp htk-compiler.cpp iofilter.cpp sigsegv.cpp
+if HAVE_THOT
+libopenlat_la_SOURCES  += thot-compiler.cpp
+endif
 #libopenlat_la_LIBADD =  -lfst  -ldl -lz -lbz2 
 
 # htk parser and compiler
@@ -45,15 +48,15 @@ htk/htk-lex.cpp: $(srcdir)/htk/htk.l
 
 ### Python extension ###
 if HAVE_SWIG
-BUILT_SOURCES = $(builddir)/openlat_swig_wrap.cpp
+BUILT_SOURCES += openlat_swig_wrap.cpp
 SWIG_SOURCES = openlat.i extra_typemaps.i
 
 pkgpython_PYTHON = openlat.py
 pkgpyexec_LTLIBRARIES   = _openlat.la
-_openlat_la_SOURCES  = $(BUILT_SOURCES) $(SWIG_SOURCES)
+_openlat_la_SOURCES  = openlat_swig_wrap.cpp $(SWIG_SOURCES)
 _openlat_la_CXXFLAGS = $(COMPILANCE_CXXFLAGS) $(AX_SWIG_PYTHON_CPPFLAGS) -I$(top_srcdir)/src/include 
 _openlat_la_LDFLAGS  = -version-info 0:0:0 -export-dynamic -module $(PYTHON_LDFLAGS) $(LDFLAGS) -lfst
 
-$(builddir)/openlat_swig_wrap.cpp : $(SWIG_SOURCES) 
+openlat_swig_wrap.cpp : $(SWIG_SOURCES) 
 	$(SWIG) $(AX_SWIG_PYTHON_OPT) -I$(top_srcdir)/src/include -o $@ $<
 endif

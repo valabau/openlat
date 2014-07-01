@@ -1,8 +1,7 @@
 // based on http://www.phpcompiler.org/articles/reentrantparser.html
-%pure-parser
 %skeleton "lalr1.cc"                          /*  -*- C++ -*- */
 %define namespace "openlat::htk"
-%name-prefix="openlat_htk_"
+%name-prefix "openlat_htk_"
 %locations
 %defines
 %debug
@@ -120,7 +119,7 @@ option: SLF_VERSION STRING { context->htk.version = string($2); delete[] $2; }  
       | XSCALE      number { context->htk.assignWeight(HtkWeights::feature_t(HtkWeights::XSCORE + $1-1), $2); }
       | INITIAL_NODE  INT  { context->htk.start_name = to_string($2); }
       | FINAL_NODE    INT  { context->htk.end_name   = to_string($2); }
-      | UNK_OPTION  STRING ENDL { error(yyloc, "Unknown option " + string($1) + "=" + string($2)); delete[] $1; delete[] $2; }
+      | UNK_OPTION  STRING ENDL { error(yyla.location, "Unknown option " + string($1) + "=" + string($2)); delete[] $1; delete[] $2; }
       | ENDL
 
 /* Size definitions */

@@ -167,13 +167,11 @@ std::string syms_to_string(std::vector<L> &syms, const fst::SymbolTable *symtab)
 }
 
 namespace std {
-  namespace tr1 {
-    template<> struct hash<openlat::SampleLabel> {
-      size_t operator()(const openlat::SampleLabel& __x) const {
-        return hash<size_t>()(__x.sample << 16) | hash<openlat::VLabel>()(__x.label);
-      }
-    };
-  }
+  template<> struct hash<openlat::SampleLabel> {
+    size_t operator()(const openlat::SampleLabel& __x) const {
+      return hash<size_t>()(__x.sample << 16) | hash<openlat::VLabel>()(__x.label);
+    }
+  };
 }
 
 

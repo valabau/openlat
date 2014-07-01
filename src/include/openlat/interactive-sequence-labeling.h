@@ -23,7 +23,7 @@
 #ifndef openlat_INTERACTIVE_SEQUENCE_LABELING_H_
 #define openlat_INTERACTIVE_SEQUENCE_LABELING_H_
 
-#include <tr1/unordered_map>
+#include <unordered_map>
 #include <set>
 #include <fst/shortest-path.h>
 #include <openlat/compat.h>
@@ -152,7 +152,7 @@ typedef struct _sPoolV {
   bool operator>(const _sPoolV &other) const { return score > other.score; }
 } PoolV;
 
-typedef std::tr1::unordered_map<SampleLabel, PoolV> Pool;
+typedef std::unordered_map<SampleLabel, PoolV> Pool;
 
 /**
  * structure function to sort the Pool acording to label

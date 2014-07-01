@@ -24,7 +24,7 @@
 #define openlat_SPLIT_SYMBOLS_H_
 
 #include <fst/mutable-fst.h>
-#include <tr1/unordered_map>
+#include <unordered_map>
 #include <boost/shared_ptr.hpp>
 
 namespace openlat {
@@ -53,7 +53,7 @@ void SplitSymbols(const fst::Fst<Arc> &fst, fst::MutableFst<Arc> *ofst,
   osyms.AddSymbol(fst.OutputSymbols()->Find(int64(0)));
 
 
-  typedef std::tr1::unordered_map<StateId, StateId> StateMap;
+  typedef std::unordered_map<StateId, StateId> StateMap;
   StateMap state_map;
 
   for (fst::StateIterator<fst::Fst<Arc> > siter(fst); !siter.Done(); siter.Next()) {
@@ -73,7 +73,7 @@ void SplitSymbols(const fst::Fst<Arc> &fst, fst::MutableFst<Arc> *ofst,
   for (fst::StateIterator<fst::Fst<Arc> > siter(fst); !siter.Done(); siter.Next()) {
     TrieNode<Arc> trie;
     // initialize trie with no symbol to go to start state
-    TrieNodeIter root = trie.insert(std::make_pair(fst::SymbolTable::kNoSymbol, std::make_pair(state_map[siter.Value()], new TrieNode<Arc>))).first;
+    TrieNodeIter root = trie.insert(std::make_pair(fst::SymbolTable::kNoSymbol, std::make_pair(state_map[siter.Value()], boost::shared_ptr< TrieNode<Arc> >(new TrieNode<Arc>)))).first;
 
     // iterate for each arc in the node
     for (fst::ArcIterator < fst::Fst<Arc> > aiter(fst, siter.Value()); !aiter.Done(); aiter.Next()) {
@@ -110,7 +110,7 @@ void SplitSymbols(const fst::Fst<Arc> &fst, fst::MutableFst<Arc> *ofst,
           TrieNodeIter end = node->find(label);
           if (end == node->end()) {
             StateId end_state = ofst->AddState();
-            end = node->insert(std::make_pair(label, std::make_pair(end_state, new TrieNode<Arc>))).first;
+            end = node->insert(std::make_pair(label, std::make_pair(end_state, boost::shared_ptr< TrieNode<Arc> >(new TrieNode<Arc>)))).first;
 
             Arc oarc;
             oarc.ilabel = label;

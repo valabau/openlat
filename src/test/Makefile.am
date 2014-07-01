@@ -1,5 +1,5 @@
 AM_CPPFLAGS = $(WARNING_CXXFLAGS) $(COMPILANCE_CXXFLAGS) $(BOOST_CPPFLAGS) -I$(top_srcdir)/src/include
-AM_LDFLAGS =  $(BOOST_LDFLAGS) $(BOOST_UNIT_TEST_FRAMEWORK_LIB)
+AM_LDFLAGS = -Wl,--no-as-needed $(BOOST_LDFLAGS) $(BOOST_UNIT_TEST_FRAMEWORK_LIB)
 
 bin_PROGRAMS = test-query test-htk test-file test-sequence-labeling test-normalize
 #LDADD = ../lib/libopenlat.la  

@@ -24,7 +24,7 @@
 #define openlat_RMPREFIX_H_
 
 #include <fst/mutable-fst.h>
-#include <tr1/unordered_map>
+#include <unordered_map>
 
 namespace openlat {
 
@@ -77,7 +77,7 @@ void SumSuffixes(const fst::Fst<Arc> &fst, fst::MutableFst<Arc> *wordlist) {
   typedef typename Arc::StateId StateId;
   typedef typename Arc::Weight Weight;
 
-  typedef std::tr1::unordered_map<typename Arc::Label, typename Arc::Weight> LabelWeightMap;
+  typedef std::unordered_map<typename Arc::Label, typename Arc::Weight> LabelWeightMap;
 
   std::vector<Weight> backward;
   fst::ShortestDistance(fst, &backward, true);

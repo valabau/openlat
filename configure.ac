@@ -7,7 +7,7 @@ AC_CONFIG_SRCDIR([src/include/openlat/compat.h])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADER([src/include/openlat/config.h])
 AC_CONFIG_MACRO_DIR([m4])
-AM_INIT_AUTOMAKE(openlat, 0.1)
+AM_INIT_AUTOMAKE
 
 
 LT_INIT
@@ -63,6 +63,14 @@ AC_ARG_WITH(gprof, AC_HELP_STRING(--with-gprof, \
 CPPFLAGS="-DDEBUG=1" \
 CXXFLAGS+=" -pg"])
 
+AC_ARG_WITH(thot, AC_HELP_STRING(--with-thot, [enable thot]), [ HAVE_THOT=true ])
+AM_CONDITIONAL([HAVE_THOT], [test "x$HAVE_THOT" != x])
+AC_DEFINE(HAVE_THOT, ["$HAVE_THOT"], [Define if Thot is found ])
+
+if test "x$ADDR2LINE" != "x" ; then
+	AC_DEFINE_UNQUOTED(ADDR2LINEBIN, ["$ADDR2LINE"], [Define if add2line is found ])
+fi
+
 #CPPFLAGS+=" -DGIT_SHA1=\"\\\"\`git describe --abbrev=64 --always --dirty\`\\\"\""
 
 # Checks for libraries.
@@ -108,23 +116,24 @@ fi
 # Check for compilation options
 # if error on this function then AX_CHECK_COMPILE_FLAG is not defined.
 # please, install autoconf-archive (sudo apt-get install autoconf-archive) 
-# AX_CHECK_COMPILER_FLAGS([-std=c++11], [COMPILANCE_CXXFLAGS="${COMPILANCE_CXXFLAGS} -std=c++11"], 
-#    [AX_CHECK_COMPILER_FLAGS([-std=c++0x], [COMPILANCE_CXXFLAGS="${COMPILANCE_CXXFLAGS} -std=c++0x"])])
-#AX_CHECK_COMPILER_FLAGS([-std=c++98], [COMPILANCE_CXXFLAGS="${COMPILANCE_CXXFLAGS} -std=c++98"],)
+# AX_CHECK_COMPILE_FLAG([-std=c++11], [COMPILANCE_CXXFLAGS="${COMPILANCE_CXXFLAGS} -std=c++11"], 
+#    [AX_CHECK_COMPILE_FLAG([-std=c++0x], [COMPILANCE_CXXFLAGS="${COMPILANCE_CXXFLAGS} -std=c++0x"])])
+#AX_CHECK_COMPILE_FLAG([-std=c++98], [COMPILANCE_CXXFLAGS="${COMPILANCE_CXXFLAGS} -std=c++98"],)
 
 
+AX_CXX_COMPILE_STDCXX_11([noext])
 #COMPILANCE_CXXFLAGS="${CPPCXXFLAGS} -D_POSIX_C_SOURCE=200809L"
-AX_CHECK_COMPILER_FLAGS([-pedantic], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -pedantic"])
-#AX_CHECK_COMPILER_FLAGS([-fpermissive], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -fpermissive"])
-AX_CHECK_COMPILER_FLAGS([-Wall], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wall"])
-AX_CHECK_COMPILER_FLAGS([-Wextra], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wextra"])
-AX_CHECK_COMPILER_FLAGS([-Wshadow], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wshadow"])
+AX_CHECK_COMPILE_FLAG([-pedantic], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -pedantic"])
+#AX_CHECK_COMPILE_FLAG([-fpermissive], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -fpermissive"])
+AX_CHECK_COMPILE_FLAG([-Wall], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wall"])
+AX_CHECK_COMPILE_FLAG([-Wextra], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wextra"])
+AX_CHECK_COMPILE_FLAG([-Wshadow], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wshadow"])
 # enable this on profiling since it will show which inlines where not made
-#AX_CHECK_COMPILER_FLAGS([-Winline], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Winline"])
-#AX_CHECK_COMPILER_FLAGS([-Wunused], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wunused"])
-#AX_CHECK_COMPILER_FLAGS([-Wunused-variable], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wunused-variable"])
-#AX_CHECK_COMPILER_FLAGS([-Wunused-parameter], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wunused-parameter"])
-#AX_CHECK_COMPILER_FLAGS([-Wunused-function], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wunused-function"])
+#AX_CHECK_COMPILE_FLAG([-Winline], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Winline"])
+#AX_CHECK_COMPILE_FLAG([-Wunused], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wunused"])
+#AX_CHECK_COMPILE_FLAG([-Wunused-variable], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wunused-variable"])
+#AX_CHECK_COMPILE_FLAG([-Wunused-parameter], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wunused-parameter"])
+#AX_CHECK_COMPILE_FLAG([-Wunused-function], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -Wunused-function"])
 
 AS_IF(test x"$DEBUG" = x"true" -o "$PROFILE" = x"true" , [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -DDEBUG -DLT_DEBUG_LOADERS"], [WARNING_CXXFLAGS="${WARNING_CXXFLAGS} -DNDEBUG"])
 #AS_IF(test x"$DEBUG" = x"true", [OPTIMIZATION_CXXFLAGS="${OPTIMIZATION_CXXFLAGS} -DDEBUG -g3 -O0"], [OPTIMIZATION_CXXFLAGS="${OPTIMIZATION_CXXFLAGS} -O2 -ffast-math"])

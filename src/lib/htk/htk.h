@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 #include <deque>
-#include <tr1/unordered_map>
+#include <unordered_map>
 
 #include <fst/fst.h>
 #include <fst/arc.h>
@@ -72,7 +72,7 @@ public:
 
   struct feature_hash {
     size_t operator()(const feature_t& __x) const {
-      return std::tr1::hash<int>()(static_cast<int>(__x));
+      return std::hash<int>()(static_cast<int>(__x));
     }
   };
 
@@ -83,7 +83,7 @@ public:
   unordered_map<feature_t, size_t, feature_hash> feature_pos; // position of the feature
 
   size_t getFeature(feature_t feat_name) {
-    unordered_map<feature_t, size_t>::const_iterator it = feature_pos.find(feat_name);
+    unordered_map<feature_t, size_t, feature_hash>::const_iterator it = feature_pos.find(feat_name);
     if (it == feature_pos.end()) {
       it = feature_pos.insert(make_pair(feat_name, feature_pos.size())).first;
     }
@@ -91,7 +91,7 @@ public:
   }
 
   std::vector<std::string> getFeatureNames() {
-    unordered_map<feature_t, size_t>::const_iterator it;
+    unordered_map<feature_t, size_t, feature_hash>::const_iterator it;
     std::string strnames[] = {"acoustic", "language", "ngram", "lmin", "lmout", "wdpenalty", "output_wdpenalty", "noise_penalty", "posterior", "xscore" };
 
     std::vector<std::string> names; 
