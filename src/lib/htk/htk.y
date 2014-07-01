@@ -57,6 +57,8 @@
 
 	#define scanner context->scanner
 	
+  // comment out this line if bison version < 3 (compilation error in line 124)
+  #define yylloc yyla.location
 %}
 
 %%
@@ -119,7 +121,7 @@ option: SLF_VERSION STRING { context->htk.version = string($2); delete[] $2; }  
       | XSCALE      number { context->htk.assignWeight(HtkWeights::feature_t(HtkWeights::XSCORE + $1-1), $2); }
       | INITIAL_NODE  INT  { context->htk.start_name = to_string($2); }
       | FINAL_NODE    INT  { context->htk.end_name   = to_string($2); }
-      | UNK_OPTION  STRING ENDL { error(yyla.location, "Unknown option " + string($1) + "=" + string($2)); delete[] $1; delete[] $2; }
+      | UNK_OPTION  STRING ENDL { error(yylloc, "Unknown option " + string($1) + "=" + string($2)); delete[] $1; delete[] $2; }
       | ENDL
 
 /* Size definitions */

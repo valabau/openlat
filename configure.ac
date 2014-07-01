@@ -65,10 +65,8 @@ CXXFLAGS+=" -pg"])
 
 AC_ARG_WITH(thot, AC_HELP_STRING(--with-thot, [enable thot]), [ HAVE_THOT=true ])
 AM_CONDITIONAL([HAVE_THOT], [test "x$HAVE_THOT" != x])
-AC_DEFINE(HAVE_THOT, ["$HAVE_THOT"], [Define if Thot is found ])
-
-if test "x$ADDR2LINE" != "x" ; then
-	AC_DEFINE_UNQUOTED(ADDR2LINEBIN, ["$ADDR2LINE"], [Define if add2line is found ])
+if test "x$HAVE_THOT" != "x" ; then
+	AC_DEFINE([HAVE_THOT], [1], [Define if Thot is found ])
 fi
 
 #CPPFLAGS+=" -DGIT_SHA1=\"\\\"\`git describe --abbrev=64 --always --dirty\`\\\"\""
