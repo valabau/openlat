@@ -26,7 +26,7 @@ endif
 
 # htk parser and compiler
 htk/htk-yacc.cpp htk/yacc.hpp htk/location.hh htk/position.hh htk/stack.hh: $(srcdir)/htk/htk.y
-	$(YACC) $(YFLAGS) $(AM_YFLAGS) --output=htk/htk-yacc.cpp --defines=htk/yacc.hpp $(srcdir)/htk/htk.y --report-file=htk/yacc.report 
+	$(YACC) $(YFLAGS) $(AM_YFLAGS) --output=htk/htk-yacc.cpp --defines=htk/yacc.hpp $(srcdir)/htk/htk.y --report-file=htk/yacc.report # -DBISON_VERSION=$(BISON_VERSION)
 
 htk/htk-lex.o: htk/htk-lex.cpp
 	$(LIBTOOL) --mode=compile $(GCC)  $(CXXFLAGS) $(AM_CXXFLAGS) -c htk/htk-lex.cpp

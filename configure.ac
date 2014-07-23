@@ -31,6 +31,8 @@ AC_CHECK_PROGS(YACC,'bison -y' byacc yacc,no)
 if test "x$YACC" = "xno" ; then
     AC_MSG_ERROR([bison is required])
 fi
+BISON_VERSION=`bison --version | awk 'NR==1{print $NF}'`
+AC_SUBST([BISON_VERSION])
 
 # boost
 AX_BOOST_BASE(1.41)

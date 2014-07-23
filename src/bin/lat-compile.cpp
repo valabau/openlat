@@ -27,6 +27,7 @@
 #include <unistd.h>
 
 #include <fst/fstlib.h>
+#include <openlat/config.h>
 #include <openlat/compat.h>
 #include <openlat/utils.h>
 #include <openlat/htk-compiler.h>
